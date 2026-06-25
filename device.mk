@@ -1,25 +1,38 @@
-# Copyright (C) 2023-2024 The LineageOS Project
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Device Makefile for OnePlus Ace 5 Racing Edition (PLF110)
 
-$(call inherit-product, $(SRC_TARGET_DIR)/product/languages_full.mk)
+# Architecture
+TARGET_ARCH := arm64
+TARGET_ARCH_VARIANT := armv8-a
+TARGET_CPU_ABI := arm64-v8a
+TARGET_2ND_ARCH := arm
+TARGET_2ND_ARCH_VARIANT := armv8-a
+TARGET_2ND_CPU_ABI := armeabi-v7a
 
-# Inherit from common device tree
-$(call inherit-product, $(LOCAL_PATH)/twrp_PLF110.mk)
+# Bootloader
+TARGET_NO_BOOTLOADER := true
 
-PRODUCT_DEVICE := PLF110
-PRODUCT_NAME := twrp_PLF110
-PRODUCT_BRAND := OnePlus
-PRODUCT_MODEL := Ace 5 Racing Edition
-PRODUCT_MANUFACTURER := OnePlus
-PRODUCT_RESTRICT_VENDOR_FILES := false
+# Kernel
+BOARD_KERNEL_IMAGE_NAME := kernel
+TARGET_PREBUILT_KERNEL := $(LOCAL_PATH)/prebuilt/kernel
+
+# Partition Info
+BOARD_FLASH_BLOCK_SIZE := 131072
+BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
+BOARD_RECOVERYIMAGE_PARTITION_SIZE := 100663296
+
+# Use ext4
+TARGET_USERIMAGES_USE_EXT4 := true
+
+# TWRP Recovery Flags
+TARGET_RECOVERY_FSTAB := $(LOCAL_PATH)/recovery.fstab
+BOARD_USES_MKE2FS := true
+TARGET_USES_64_BIT_BINDER := true
+
+# Encryption
+TW_INCLUDE_CRYPTO := true
+TW_NO_EXFAT_FUSE := true
+
+# TWRP Settings
+TW_THEME := portrait_hdpi
+TW_SCREEN_BLANK_ON_BOOT := true
+TW_INCLUDE_RESETPROP := true
