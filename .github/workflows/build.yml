@@ -14,7 +14,7 @@ on:
       DEVICE_TREE_BRANCH:
         description: 'Device Tree Branch'
         required: true
-        default: 'main'
+        default: 'master'
       DEVICE_PATH:
         description: 'Device Path'
         required: true
