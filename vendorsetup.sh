@@ -13,5 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_lunch_combo twrp_PLF110-user
-add_lunch_combo twrp_PLF110-userdebug
+# Deprecated: use COMMON_LUNCH_CHOICES in AndroidProducts.mk instead
+# add_lunch_combo twrp_PLF110-user
+# add_lunch_combo twrp_PLF110-userdebug
