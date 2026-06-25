@@ -33,6 +33,7 @@ TW_INCLUDE_CRYPTO := true
 TW_NO_EXFAT_FUSE := true
 
 # TWRP Settings
+TARGET_SUPPORTS_64_BIT_APPS := false
 TW_THEME := portrait_hdpi
 TW_SCREEN_BLANK_ON_BOOT := true
 TW_INCLUDE_RESETPROP := true
