@@ -14,9 +14,6 @@
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/languages_full.mk)
 
-# Inherit from common OnePlus config
-$(call inherit-product, vendor/oneplus/config/common_full_phone.mk)
-
 # Inherit from common device tree
 $(call inherit-product, $(LOCAL_PATH)/twrp_PLF110.mk)
 

@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Inherit from common OnePlus config
-$(call inherit-product, vendor/oneplus/config/common_full_phone.mk)
-
 # Inherit from device
 $(call inherit-product, $(LOCAL_PATH)/device.mk)
 
