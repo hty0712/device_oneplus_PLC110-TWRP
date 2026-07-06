@@ -1,7 +1,6 @@
 #
 # ADDITIONAL_DEFAULT_PROPERTIES - MediaTek Dimensity 9400e
 #
-ro.build.version.security_patch=2024-06-05
 ro.product.model=PLF110
 ro.product.brand=OnePlus
 ro.product.name=PLF110
@@ -9,10 +8,8 @@ ro.product.device=PLF110
 ro.product.board=oneplus
 ro.hardware=mt6991
 ro.board.platform=mt6991
-ro.build.description=qssi_64-user 14 UKQ1.231003.002 V14.0.0.200CN release-keys
 ro.build.fingerprint=OnePlus/PLF110/PLF110:14/UKQ1.231003.002/V14.0.0.200CN:user/release-keys
 ro.build.display.full_id=PLF110-user 14 UKQ1.231003.002 V14.0.0.200CN
-ro.build.tags=release-keys
 ro.build.date.unix=1749081600
 ro.build.version.codename=REL
 ro.product.first_api_level=34
