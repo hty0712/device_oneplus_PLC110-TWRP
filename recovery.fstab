@@ -1,40 +1,8 @@
-# Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted (subject to the limitations in the
-# disclaimer below) provided that the following conditions are met:
-#
-#   * Redistributions of source code must retain the above copyright
-#     notice, this list of conditions and the following disclaimer.
-#
-#   * Redistributions in binary form must reproduce the above
-#     copyright notice, this list of conditions and the following
-#     disclaimer in the documentation and/or other materials provided
-#     with the distribution.
-#
-#   * Neither the name of The Linux Foundation nor the names of its
-#     contributors may be used to endorse or promote products derived
-#     from this software without specific prior written permission.
-#
-# NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
-# GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
-# HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
-# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-# IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
-# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-# Android fstab file.
-# The filesystem that contains the filesystem checker binary (typically /system) cannot
-# specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
+# Android fstab file for OnePlus Ace 5 Ultra (PLC110)
+# <src> <mnt_point> <type> <mnt_flags and options> <fs_mgr_flags>
+# Logical partitions are resolved by liblp, so the source is the partition name.
 
-#<src> <mnt_point> <type> <mnt_flags and options> <fs_mgr_flags>
+# Logical partitions
 system /system ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
 system /system erofs ro wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
 system_ext /system_ext ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
@@ -43,32 +11,52 @@ product /product ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_system,log
 product /product erofs ro wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
 vendor /vendor ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_vendor,logical,first_stage_mount
 vendor /vendor erofs ro wait,slotselect,avb=vbmeta_vendor,logical,first_stage_mount
-my_product /my_product ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount
-my_product /my_product erofs ro wait,slotselect,logical,first_stage_mount
+odm /odm ext4 ro,barrier=1,discard wait,slotselect,logical,first_stage_mount,nofail
+odm /odm erofs ro wait,slotselect,logical,first_stage_mount,nofail
+vendor_dlkm /vendor_dlkm ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_vendor,logical,first_stage_mount
+vendor_dlkm /vendor_dlkm erofs ro wait,slotselect,avb=vbmeta_vendor,logical,first_stage_mount
+odm_dlkm /odm_dlkm ext4 ro,barrier=1,discard wait,slotselect,logical,first_stage_mount,nofail
+odm_dlkm /odm_dlkm erofs ro wait,slotselect,logical,first_stage_mount,nofail
+system_dlkm /system_dlkm ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
+system_dlkm /system_dlkm erofs ro wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
+my_product /my_product ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
+my_product /my_product erofs ro wait,slotselect,logical,first_stage_mount,nofail
+my_engineering /my_engineering ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
+my_engineering /my_engineering erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_company /my_company ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_company /my_company erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_carrier /my_carrier ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_carrier /my_carrier erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_region /my_region ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_region /my_region erofs ro wait,slotselect,logical,first_stage_mount,nofail
-my_bigball /my_bigball ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
-my_bigball /my_bigball erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_heytap /my_heytap ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_heytap /my_heytap erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_stock /my_stock ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_stock /my_stock erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_preload /my_preload ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_preload /my_preload erofs ro wait,slotselect,logical,first_stage_mount,nofail
+my_bigball /my_bigball ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
+my_bigball /my_bigball erofs ro wait,slotselect,logical,first_stage_mount,nofail
 my_manifest /my_manifest ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount,nofail
 my_manifest /my_manifest erofs ro wait,slotselect,logical,first_stage_mount,nofail
-my_engineering /my_engineering ext4 ro,barrier=1 wait,slotselect,logical,first_stage_mount
-my_engineering /my_engineering erofs ro wait,slotselect,logical,first_stage_mount
-vendor_dlkm /vendor_dlkm ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_vendor,logical,first_stage_mount
-vendor_dlkm /vendor_dlkm erofs ro wait,slotselect,avb=vbmeta_vendor,logical,first_stage_mount
-system_dlkm /system_dlkm ext4 ro,barrier=1,discard wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
-system_dlkm /system_dlkm erofs ro wait,slotselect,avb=vbmeta_system,logical,first_stage_mount
-odm /odm ext4 ro,barrier=1,discard wait,slotselect,logical,first_stage_mount,nofail
-odm /odm erofs ro wait,slotselect,logical,first_stage_mount,nofail
+
+# Userdata / metadata (options match /vendor/etc/fstab.mt6991)
+/dev/block/by-name/userdata /data f2fs noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065,fsync_mode=nobarrier,inlinecrypt latemount,resize,wait,check,formattable,quota,reservedsize=128M,checkpoint=fs,fscompress,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0,keydirectory=/metadata/vold/metadata_encryption,metadata_encryption=aes-256-xts:wrappedkey_v0,wrappedkey
 /dev/block/by-name/metadata /metadata f2fs noatime,nosuid,nodev,discard wait,check,formattable,first_stage_mount
-/dev/block/platform/11270000.ufshc/by-name/userdata /data f2fs noatime,nosuid,nodev,discard,reserve_root=32768,resgid=1065,fsync_mode=nobarrier,inlinecrypt latemount,resize,wait,check,formattable,fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0,keydirectory=/metadata/vold/metadata_encryption,metadata_encryption=aes-256-xts:wrappedkey_v0,quota,reservedsize=128M,checkpoint=fs,fscompress
-/dev/block/platform/11270000.ufshc/by-name/misc /misc emmc defaults defaults
+
+# OPlus partitions
+/dev/block/by-name/oplusreserve2 /cache ext4 noatime,nosuid,nodev,noauto_da_alloc,discard wait,check,formattable,first_stage_mount
+/dev/block/by-name/persist /persist ext4 noatime,nosuid,nodev,noauto_da_alloc,commit=1,nodelalloc wait,check,formattable
+/dev/block/by-name/protect1 /mnt/vendor/protect_f ext4 noatime,nosuid,nodev,noauto_da_alloc,commit=1,nodelalloc wait,check,formattable
+/dev/block/by-name/protect2 /mnt/vendor/protect_s ext4 noatime,nosuid,nodev,noauto_da_alloc,commit=1,nodelalloc wait,check,formattable
+/dev/block/by-name/nvdata /mnt/vendor/nvdata ext4 noatime,nosuid,nodev,noauto_da_alloc,discard wait,check,formattable
+/dev/block/by-name/nvcfg /mnt/vendor/nvcfg ext4 noatime,nosuid,nodev,noauto_da_alloc,commit=1,nodelalloc wait,check,formattable
+
+# Removable storage
+/devices/platform/16701000.usb0/16700000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/16711000.usb1/16710000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/16721000.usb2/16720000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/11201000.usb0/11200000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/11211000.usb1/11210000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/usb_xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/soc/16310000.mmc* auto auto defaults voldmanaged=sdcard1:auto

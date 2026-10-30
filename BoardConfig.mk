@@ -1,11 +1,11 @@
 #
-# Copyright 2017 The Android Open Source Project
+# Copyright (C) 2026 The TWRP Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,175 +14,211 @@
 # limitations under the License.
 #
 
-DEVICE_PATH := device/oneplus/PLF110
+DEVICE_PATH := device/oneplus/PLC110
 
-# SDK
-BOARD_SYSTEMSDK_VERSIONS := 31
+# Minimal manifest
+ALLOW_MISSING_DEPENDENCIES := true
+BUILD_BROKEN_DUP_RULES := true
+BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
 
-# Architecture - MediaTek Dimensity 9400e
+# Architecture - MediaTek MT6991 (arm64 only)
 TARGET_ARCH := arm64
 TARGET_ARCH_VARIANT := armv8-a
 TARGET_CPU_ABI := arm64-v8a
 TARGET_CPU_ABI2 :=
-TARGET_CPU_VARIANT := cortex-a76
-TARGET_2ND_ARCH := arm
-TARGET_2ND_ARCH_VARIANT := armv8-2a
-TARGET_2ND_CPU_ABI := armeabi-v7a
-TARGET_2ND_CPU_ABI2 := armeabi
-TARGET_2ND_CPU_VARIANT := cortex-a55
+TARGET_CPU_VARIANT := generic
+TARGET_CPU_VARIANT_RUNTIME := cortex-a55
+TARGET_USES_64_BIT_BINDER := true
+TARGET_SUPPORTS_64_BIT_APPS := true
 
-# 64-bit only
-TARGET_SUPPORTS_64_BIT_APPS := false
+# Bootloader / platform
+TARGET_BOOTLOADER_BOARD_NAME := mt6991
+TARGET_BOARD_PLATFORM := mt6991
+TARGET_NO_BOOTLOADER := true
 
-# Bootloader
-TARGET_NO_BOOTLOADER := false
-TARGET_USES_UEFI := true
-TARGET_USES_REMOTEPROC := true
-
-# Kernel/Ramdisk - MediaTek MT6991 GKI
+# Kernel - stock GKI 6.6 boot.img kernel (header v4)
 BOARD_BOOT_HEADER_VERSION := 4
-BOARD_MKBOOTIMG_ARGS := --header_version $(BOARD_BOOT_HEADER_VERSION)
-BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE := true
 BOARD_KERNEL_IMAGE_NAME := kernel
+BOARD_KERNEL_PAGESIZE := 4096
+BOARD_KERNEL_BASE := 0x7fff8000
+BOARD_KERNEL_OFFSET := 0x00008000
+BOARD_RAMDISK_OFFSET := 0x26f08000
+BOARD_KERNEL_TAGS_OFFSET := 0x07c88000
+BOARD_DTB_OFFSET := 0x07c88000
+BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2 buildvariant=user
 BOARD_RAMDISK_USE_LZ4 := true
-TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/$(BOARD_KERNEL_IMAGE_NAME)
+BOARD_KERNEL_SEPARATED_DTBO := true
+TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
+TARGET_PREBUILT_DTB := $(DEVICE_PATH)/prebuilt/dtb
+BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
+BOARD_MKBOOTIMG_ARGS += --pagesize $(BOARD_KERNEL_PAGESIZE)
+BOARD_MKBOOTIMG_ARGS += --kernel_offset $(BOARD_KERNEL_OFFSET)
+BOARD_MKBOOTIMG_ARGS += --ramdisk_offset $(BOARD_RAMDISK_OFFSET)
+BOARD_MKBOOTIMG_ARGS += --tags_offset $(BOARD_KERNEL_TAGS_OFFSET)
+BOARD_MKBOOTIMG_ARGS += --dtb_offset $(BOARD_DTB_OFFSET)
+BOARD_MKBOOTIMG_ARGS += --dtb $(TARGET_PREBUILT_DTB)
+BOARD_MKBOOTIMG_ARGS += --board ""
 
-# Kernel source: https://github.com/OnePlusOSS/android_kernel_oneplus_mt6991
-# Branch: oneplus/mt6991_b_16.0.0_oneplus_ace5_ultra
-# Defconfig: gki_defconfig (GKI architecture)
+# A/B (virtual A/B, no dedicated recovery partition)
+AB_OTA_UPDATER := true
+AB_OTA_PARTITIONS += \
+    boot \
+    init_boot \
+    vendor_boot \
+    dtbo \
+    vbmeta \
+    vbmeta_system \
+    vbmeta_vendor \
+    system \
+    system_ext \
+    product \
+    vendor \
+    odm \
+    vendor_dlkm \
+    odm_dlkm \
+    system_dlkm \
+    my_bigball \
+    my_carrier \
+    my_company \
+    my_engineering \
+    my_heytap \
+    my_manifest \
+    my_preload \
+    my_product \
+    my_region \
+    my_stock
 
-# Partition Info
-BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
-TARGET_COPY_OUT_ODM := odm
-BOARD_ODMIMAGE_FILE_SYSTEM_TYPE := ext4
-BOARD_USES_VENDOR_DLKMIMAGE := true
-TARGET_COPY_OUT_VENDOR_DLKM := vendor_dlkm
-BOARD_VENDOR_DLKMIMAGE_FILE_SYSTEM_TYPE := ext4
-TARGET_USERIMAGES_USE_EXT4 := true
-TARGET_USERIMAGES_USE_F2FS := true
-BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4
-BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
-BOARD_BOOTIMAGE_PARTITION_SIZE := 201326592
-BOARD_KERNEL-GKI_BOOTIMAGE_PARTITION_SIZE := $(BOARD_BOOTIMAGE_PARTITION_SIZE)
-BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := 201326592
-BOARD_USERDATAIMAGE_PARTITION_SIZE := 233871900672
-BOARD_PERSISTIMAGE_PARTITION_SIZE := 67108864
-BOARD_PERSISTIMAGE_FILE_SYSTEM_TYPE := ext4
-BOARD_METADATAIMAGE_PARTITION_SIZE := 16777216
-BOARD_DTBOIMG_PARTITION_SIZE := 25165824
-BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
-BOARD_FLASH_BLOCK_SIZE := 262144 # (BOARD_KERNEL_PAGESIZE * 64)
-
-# Dynamic/Logical Partitions
-BOARD_SUPER_PARTITION_SIZE := 16642998272
-BOARD_SUPER_PARTITION_GROUPS := qti_dynamic_partitions
-BOARD_QTI_DYNAMIC_PARTITIONS_SIZE := 16642998268 # BOARD_SUPER_PARTITION_SIZE - 4MB
-BOARD_QTI_DYNAMIC_PARTITIONS_PARTITION_LIST := odm product system system_ext vendor vendor_dlkm
-BOARD_RECOVERYIMAGE_PARTITION_SIZE := 104857600
-
-# Workaround for error copying vendor files to recovery ramdisk
-TARGET_COPY_OUT_VENDOR := vendor
-
-# OTA
-TARGET_OTA_ASSERT_DEVICE := PLF110,oneplus_plf110
-
-# Rules
-BUILD_BROKEN_DUP_RULES := true
-BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
-
-# Recovery
-TARGET_RECOVERY_DEVICE_MODULES += \
-    android.hidl.allocator@1.0 \
-    android.hidl.memory@1.0 \
-    android.hidl.memory.token@1.0 \
-    libdmabufheap \
-    libhidlmemory \
-    libion \
-    libnetutils \
-    vendor.display.config@1.0 \
-    vendor.display.config@2.0 \
-    libdebuggerd_client
-
+# Recovery is a ramdisk fragment inside vendor_boot (like stock)
+BOARD_USES_GENERIC_KERNEL_IMAGE := true
+BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
+BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
+BOARD_VENDOR_RAMDISK_FRAGMENT.recovery.MKBOOTIMG_ARGS += --ramdisk_name recovery
+TARGET_NO_RECOVERY := true
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
 
-# Theme
-TW_Y_OFFSET := 124
-TW_H_OFFSET := -124
+# Partitions (sizes read from the device with blockdev --getsize64)
+BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := 100663296
+BOARD_FLASH_BLOCK_SIZE := 262144
 
-# Use mke2fs to create ext4 images
-TARGET_USES_MKE2FS := true
+# Dynamic partitions (liblp group is "main")
+BOARD_SUPER_PARTITION_SIZE := 14680064000
+BOARD_SUPER_PARTITION_GROUPS := main
+BOARD_MAIN_SIZE := 14675869696
+BOARD_MAIN_PARTITION_LIST := \
+    system \
+    system_ext \
+    product \
+    vendor \
+    odm \
+    vendor_dlkm \
+    odm_dlkm \
+    system_dlkm \
+    my_product \
+    my_engineering \
+    my_company \
+    my_carrier \
+    my_region \
+    my_heytap \
+    my_stock \
+    my_preload \
+    my_bigball \
+    my_manifest
 
-# AVB
+# File systems
+TARGET_USERIMAGES_USE_EXT4 := true
+TARGET_USERIMAGES_USE_F2FS := true
+BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
+BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
+TARGET_COPY_OUT_VENDOR := vendor
+TARGET_COPY_OUT_ODM := odm
+TARGET_COPY_OUT_PRODUCT := product
+TARGET_COPY_OUT_SYSTEM := system
+TARGET_COPY_OUT_SYSTEM_EXT := system_ext
+TARGET_COPY_OUT_VENDOR_DLKM := vendor_dlkm
+TARGET_COPY_OUT_ODM_DLKM := odm_dlkm
+TARGET_COPY_OUT_SYSTEM_DLKM := system_dlkm
+
+# Verified boot
 BOARD_AVB_ENABLE := true
-BOARD_AVB_RECOVERY_KEY_PATH := external/avb/test/data/testkey_rsa4096.pem
-BOARD_AVB_RECOVERY_ALGORITHM := SHA256_RSA4096
-BOARD_AVB_RECOVERY_ROLLBACK_INDEX := 1
-BOARD_AVB_RECOVERY_ROLLBACK_INDEX_LOCATION := 1
 
-# Encryption - MediaTek
+# Encryption (FBE v2 + metadata encryption, Trustonic KeyMint)
 BOARD_USES_METADATA_PARTITION := true
-BOARD_USES_MTK_FBE_DECRYPTION := true
+TW_INCLUDE_CRYPTO := true
+TW_INCLUDE_CRYPTO_FBE := true
+TW_INCLUDE_FBE_METADATA_DECRYPT := true
+TW_USE_FSCRYPT_POLICY := 2
+TW_INCLUDE_OMAPI := true
+
+# KeyMint anti-rollback: must be >= the version that encrypted /data
 PLATFORM_VERSION := 99.87.36
 PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
 PLATFORM_SECURITY_PATCH := 2099-12-31
 VENDOR_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
+BOOT_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
 
-# Extras
+# Props
 TARGET_SYSTEM_PROP += $(DEVICE_PATH)/system.prop
 TARGET_VENDOR_PROP += $(DEVICE_PATH)/vendor.prop
 
-# Vibrator
-TW_SUPPORT_INPUT_AIDL_HAPTICS := true
-TW_SUPPORT_INPUT_AIDL_HAPTICS_FIX_OFF := true
-TARGET_RECOVERY_DEVICE_MODULES += libexpat android.hardware.vibrator-V2-ndk
-RECOVERY_LIBRARY_SOURCE_FILES += \
-    $(TARGET_OUT_SHARED_LIBRARIES)/libexpat.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/android.hardware.vibrator-V2-ndk.so
-
-# TWRP specific build flags - MediaTek Dimensity 9400e
-TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888
-TW_FRAMERATE := 120
+# Display - 1272x2800 panel, 141 px top cutout
+TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
 TW_THEME := portrait_hdpi
-TW_CUSTOM_CPU_TEMP_PATH := "/sys/devices/virtual/thermal/thermal_zone45/temp"
-TW_BRIGHTNESS_PATH := "/sys/devices/platform/soc/10012000.dsi/backlight/panel0-backlight/brightness"
-TW_STATUS_ICONS_ALIGN := center
-TW_EXCLUDE_APEX := true
-TW_EXCLUDE_DEFAULT_USB_INIT := true
-TW_EXTRA_LANGUAGES := true
-TW_INCLUDE_CRYPTO := true
-TW_NO_EXFAT_FUSE := true
-TW_INCLUDE_RESETPROP := true
-TW_USE_SERIALNO_PROPERTY_FOR_DEVICE_ID := true
+TW_FRAMERATE := 120
 TW_SCREEN_BLANK_ON_BOOT := true
+TW_NO_SCREEN_BLANK := true
+TW_Y_OFFSET := 141
+TW_H_OFFSET := -141
+TW_STATUS_ICONS_ALIGN := center
+TW_BRIGHTNESS_PATH := "/sys/class/leds/lcd-backlight/brightness"
+
+# No vibrator HAL is exposed on this device; aw8697 is driven through sysfs
+TW_INPUT_BLACKLIST := "hbtp_vm"
+
+# Misc
+TW_CUSTOM_CPU_TEMP_PATH := "/sys/class/thermal/thermal_zone5/temp"
+TW_DEVICE_VERSION := PLC110-A16
+TW_DEFAULT_LANGUAGE := zh_CN
+TW_EXTRA_LANGUAGES := true
+TW_EXCLUDE_APEX := true
+TW_EXCLUDE_TWRPAPP := true
+TW_EXCLUDE_DEFAULT_USB_INIT := true
+TW_INCLUDE_FASTBOOTD := true
+TW_INCLUDE_LPDUMP := true
+TW_INCLUDE_LPTOOLS := true
+TW_INCLUDE_REPACKTOOLS := true
+TW_INCLUDE_RESETPROP := true
+TW_INCLUDE_LIBRESETPROP := true
+TW_USE_DMCTL := true
+TW_USE_SERIALNO_PROPERTY_FOR_DEVICE_ID := true
+TW_USE_TOOLBOX := true
+TW_ENABLE_ALL_PARTITION_TOOLS := true
+
+# File system tools
+RECOVERY_SDCARD_ON_DATA := true
+TARGET_USES_MKE2FS := true
+TW_ENABLE_FS_COMPRESSION := true
+TW_INCLUDE_FUSE_EXFAT := true
+TW_INCLUDE_FUSE_NTFS := true
+TW_INCLUDE_NTFS_3G := true
+TW_NO_EXFAT_FUSE := true
+
+# Props copied from vendor at runtime
 TW_OVERRIDE_SYSTEM_PROPS := \
     "ro.build.product;ro.build.fingerprint=ro.vendor.build.fingerprint;ro.build.version.incremental"
 TW_OVERRIDE_PROPS_ADDITIONAL_PARTITIONS := vendor
-RECOVERY_LIBRARY_SOURCE_FILES += \
-    $(TARGET_OUT_SHARED_LIBRARIES)/android.hidl.allocator@1.0.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/android.hidl.memory@1.0.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/android.hidl.memory.token@1.0.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/libdmabufheap.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/libhidlmemory.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/libion.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/libnetutils.so \
-    $(TARGET_OUT_SHARED_LIBRARIES)/libdebuggerd_client.so \
-    $(TARGET_OUT_SYSTEM_EXT_SHARED_LIBRARIES)/vendor.display.config@1.0.so \
-    $(TARGET_OUT_SYSTEM_EXT_SHARED_LIBRARIES)/vendor.display.config@2.0.so
 
-# MediaTek vendor modules
-TW_LOAD_VENDOR_MODULES := "mtk_battery.ko mtk Charger.ko mtk_clkmgr.ko mtk_coredump.ko mtk_devinfo.ko mtk_drm.ko mtk_drm_disp_param.ko mtk_drm_fpsgo.ko mtk_drm_videoonly.ko mtk_dvo.ko mtk_framebuffer.ko mtk_gps.ko mtk_hdmi.ko mtk_hf_manager.ko mtk_i2c.ko mtk_ipi.ko mtk_ive.ko mtk_jpegdec_core.ko mtk_ion.ko mtk_leds.ko mtk_low_battery_lpm.ko mtk_memcard.ko mtk_m4u.ko mtk_mdp.ko mtk_mdp3.ko mtk_module_alias.ko mtk_perf.ko mtk_pfm.ko mtk_power.ko mtk_pstore.ko mtk_rng.ko mtk_rpmsg.ko mtk_scpsys.ko mtk_secvideo.ko mtk_spi.ko mtk_sspm.ko mtk舞台.ko mtk_thermal.ko mtk_timer.ko mtk_ur_bm.ko mtk_vdec_core.ko mtk_vdec_procfs.ko mtk_venc_core.ko mtk_vibrator.ko mtk_vpu.ko mtk_wdt.ko mtk_wlan.ko goodix_ts.ko fts_ts.ko focaltech_touch.ko"
-TW_LOAD_VENDOR_MODULES_EXCLUDE_GKI := true
-
-# TWRP Debug Flags
+# Debug
 TARGET_USES_LOGD := true
 TWRP_INCLUDE_LOGCAT := true
-TARGET_RECOVERY_DEVICE_MODULES += debuggerd
-RECOVERY_BINARY_SOURCE_FILES += $(TARGET_OUT_EXECUTABLES)/debuggerd
-TARGET_RECOVERY_DEVICE_MODULES += strace
-RECOVERY_BINARY_SOURCE_FILES += $(TARGET_OUT_EXECUTABLES)/strace
+TARGET_RECOVERY_DEVICE_MODULES += debuggerd strace
+RECOVERY_BINARY_SOURCE_FILES += \
+    $(TARGET_OUT_EXECUTABLES)/debuggerd \
+    $(TARGET_OUT_EXECUTABLES)/strace
 
-# TWRP zip installer
-ifneq ($(wildcard bootable/recovery/installer/.),)
-USE_RECOVERY_INSTALLER := true
-RECOVERY_INSTALLER_PATH := bootable/recovery/installer
-endif
+# Extra libraries
+TARGET_RECOVERY_DEVICE_MODULES += libion
+TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
+    $(TARGET_OUT_SHARED_LIBRARIES)/libion.so
+
+# OTA assert (product device is OP60EDL1 in the stock build)
+TARGET_OTA_ASSERT_DEVICE := PLC110,OP60EDL1,emira,oneplus_plc110

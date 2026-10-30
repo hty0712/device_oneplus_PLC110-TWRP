@@ -1,42 +1,36 @@
 @echo off
 REM ============================================
-REM TWRP Build Launcher for Windows
-REM Runs build.sh in WSL (Windows Subsystem for Linux)
+REM TWRP 16 build launcher for OnePlus Ace 5 Ultra (PLC110)
+REM Runs build.sh inside WSL (Ubuntu).
 REM ============================================
 
 echo ========================================
-echo  TWRP Build for OnePlus Ace 5 Racing
-echo  Device: PLF110
-echo  Platform: MT6991 (Dimensity 9400e)
+echo  TWRP 16 build for OnePlus Ace 5 Ultra
+echo  Device: PLC110  (MediaTek MT6991)
+echo  Output: vendor_boot.img
 echo ========================================
 echo.
 
-REM Check if WSL is installed
-wsl --list --verbose 2>nul
+wsl --list --verbose >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] WSL is not installed or not enabled.
+    echo [ERROR] WSL is not installed or no distribution is registered.
     echo.
-    echo Install WSL with:
-    echo   wsl --install
-    echo.
-    echo Or use Ubuntu directly.
+    echo Install WSL and Ubuntu first:
+    echo   wsl --install -d Ubuntu
+    echo Then install the Android 16 build dependencies in Ubuntu.
     pause
     exit /b 1
 )
 
-REM Find the script directory
 set SCRIPT_DIR=%~dp0
-
-REM Convert Windows path to WSL path
 for /f "tokens=*" %%i in ('wsl wslpath "%SCRIPT_DIR%"') do set WSL_DIR=%%i
 
-echo [INFO] Script directory: %WSL_DIR%
-echo [INFO] Launching WSL build...
+echo [INFO] Device tree: %WSL_DIR%
+echo [INFO] Starting WSL build (this can take a long time)...
 echo.
 
-REM Run build script in WSL
-wsl -e bash -c "cd '%WSL_DIR%' && chmod +x build.sh && ./build.sh"
+wsl -e bash -c "cd '%WSL_DIR%' && chmod +x build.sh tools/extract-prebuilts.sh && ./build.sh"
 
 echo.
-echo [INFO] Build process completed.
+echo [INFO] Build finished. Check the output above.
 pause

@@ -1,20 +1,33 @@
 #
-# ADDITIONAL_DEFAULT_PROPERTIES - MediaTek Dimensity 9400e
+# System properties for OnePlus Ace 5 Ultra (PLC110)
 #
-ro.product.model=PLF110
+
+# Identity (stock product name is PLC110, stock ro.product.device is OP60EDL1)
+ro.product.model=PLC110
 ro.product.brand=OnePlus
-ro.product.name=PLF110
-ro.product.device=PLF110
-ro.product.board=oneplus
-ro.hardware=mt6991
-ro.board.platform=mt6991
-ro.build.fingerprint=OnePlus/PLF110/PLF110:14/UKQ1.231003.002/V14.0.0.200CN:user/release-keys
-ro.build.display.full_id=PLF110-user 14 UKQ1.231003.002 V14.0.0.200CN
-ro.build.date.unix=1749081600
-ro.build.version.codename=REL
-ro.product.first_api_level=34
+ro.product.name=PLC110
+ro.product.device=PLC110
+ro.product.manufacturer=OnePlus
+ro.product.board=mt6991
 ro.product.cpu.abi=arm64-v8a
-ro.build.characteristics=default
+ro.product.first_api_level=35
+
+# Platform
+ro.hardware=mt6991
 ro.hardware.chipname=MT6991
+ro.board.platform=mt6991
 ro.soc.model=MT6991
 ro.soc.manufacturer=MediaTek
+
+# Stock fingerprint (also used by TWRP's TW_OVERRIDE_SYSTEM_PROPS)
+ro.build.fingerprint=OnePlus/PLC110/OP60EDL1:16/BP2A.250605.015/V.dff485_173d7fc_1705300:user/release-keys
+ro.build.display.id=PLC110_16.0.10.500(CN01)
+ro.build.ab_update=true
+
+# Virtual A/B
+ro.virtual_ab.enabled=true
+ro.virtual_ab.compression.enabled=true
+ro.virtual_ab.compression.xor.enabled=true
+
+# FBE / metadata encryption
+ro.crypto.volume.filenames_mode=aes-256-cts

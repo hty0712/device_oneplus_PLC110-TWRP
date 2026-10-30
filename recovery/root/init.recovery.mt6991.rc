@@ -1,0 +1,29 @@
+# Device-specific recovery init for OnePlus Ace 5 Ultra (MT6991)
+
+import /init.recovery.trustonic.rc
+
+on early-init
+    # Keep TWRP's generic configfs gadget from init.rc out of the way; the
+    # device USB rc below builds the gadget itself and flips this to 1.
+    setprop sys.usb.configfs 0
+    # Stock USB gadget controller
+    setprop sys.usb.controller "16701000.usb0"
+    setprop sys.usb.ffs.aio_compat 1
+
+on init
+    # Provide the conventional /dev/block/bootdevice path used by TWRP scripts
+    symlink /dev/block/platform/soc/16810000.ufshci /dev/block/bootdevice
+
+    # keystore2 is started by TWRP with /tmp/misc/keystore as its working dir
+    mkdir /tmp/misc 0755 root root
+    mkdir /tmp/misc/keystore 0700 root root
+
+on fs
+    # Trustonic mcDriverDaemon needs its secure storage below /mnt/vendor/persist
+    wait /dev/block/by-name/persist 5
+    mkdir /mnt/vendor 0755 root root
+    mkdir /mnt/vendor/persist 0771 system system
+    mount ext4 /dev/block/by-name/persist /mnt/vendor/persist
+    mkdir /mnt/vendor/persist/mcRegistry 0771 system system
+    mkdir /mnt/vendor/persist/mcRegistry/tee_logs 0771 system system
+    mkdir /mnt/vendor/persist/keybox 0771 system system

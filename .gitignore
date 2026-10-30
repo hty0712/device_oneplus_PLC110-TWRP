@@ -1,5 +1,10 @@
 # Prebuilt kernel (large binary)
 prebuilt/kernel
+# Stock DTB and vendor_boot PLATFORM ramdisk (large binaries)
+prebuilt/dtb
+prebuilt/vendor_ramdisk00.cpio.lz4
+# Local stock images used to regenerate the prebuilts
+stock/
 
 # Build output
 out/

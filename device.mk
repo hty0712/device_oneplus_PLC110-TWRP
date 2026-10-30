@@ -1,39 +1,37 @@
-# Device Makefile for OnePlus Ace 5 Racing Edition (PLF110)
+# Device package configuration for OnePlus Ace 5 Ultra (PLC110)
 
-# Architecture
-TARGET_ARCH := arm64
-TARGET_ARCH_VARIANT := armv8-a
-TARGET_CPU_ABI := arm64-v8a
-TARGET_2ND_ARCH := arm
-TARGET_2ND_ARCH_VARIANT := armv8-a
-TARGET_2ND_CPU_ABI := armeabi-v7a
+LOCAL_PATH := device/oneplus/PLC110
 
-# Bootloader
-TARGET_NO_BOOTLOADER := true
+# Dynamic partitions / virtual A/B with XOR compression
+PRODUCT_USE_DYNAMIC_PARTITIONS := true
+ENABLE_VIRTUAL_AB := true
+$(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/compression_with_xor.mk)
 
-# Kernel
-BOARD_KERNEL_IMAGE_NAME := kernel
-TARGET_PREBUILT_KERNEL := $(LOCAL_PATH)/prebuilt/kernel
+# API levels
+BOARD_SHIPPING_API_LEVEL := 36
+PRODUCT_SHIPPING_API_LEVEL := 36
 
-# Partition Info
-BOARD_FLASH_BLOCK_SIZE := 131072
-BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
-BOARD_RECOVERYIMAGE_PARTITION_SIZE := 100663296
+# Fastbootd
+PRODUCT_PACKAGES += \
+    fastbootd \
+    android.hardware.fastboot@1.0-impl-mock
 
-# Use ext4
-TARGET_USERIMAGES_USE_EXT4 := true
+# A/B OTA helpers
+AB_OTA_POSTINSTALL_CONFIG += \
+    RUN_POSTINSTALL_system=true \
+    POSTINSTALL_PATH_system=system/bin/otapreopt_script \
+    FILESYSTEM_TYPE_system=ext4 \
+    POSTINSTALL_OPTIONAL_system=true
 
-# TWRP Recovery Flags
-TARGET_RECOVERY_FSTAB := $(LOCAL_PATH)/recovery.fstab
-BOARD_USES_MKE2FS := true
-TARGET_USES_64_BIT_BINDER := true
+PRODUCT_PACKAGES += \
+    otapreopt_script \
+    cppreopts.sh \
+    update_engine \
+    update_verifier \
+    update_engine_sideload
 
-# Encryption
-TW_INCLUDE_CRYPTO := true
-TW_NO_EXFAT_FUSE := true
+PRODUCT_PACKAGES_DEBUG += \
+    update_engine_client
 
-# TWRP Settings
-TARGET_SUPPORTS_64_BIT_APPS := false
-TW_THEME := portrait_hdpi
-TW_SCREEN_BLANK_ON_BOOT := true
-TW_INCLUDE_RESETPROP := true
+# Soong namespaces
+PRODUCT_SOONG_NAMESPACES += $(LOCAL_PATH)
