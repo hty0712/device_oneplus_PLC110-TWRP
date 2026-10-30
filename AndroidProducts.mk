@@ -13,8 +13,8 @@
 # limitations under the License.
 
 PRODUCT_MAKEFILES := \
-    $(LOCAL_DIR)/twrp_PLF110.mk
+    $(LOCAL_DIR)/twrp_PLC110.mk
 
 COMMON_LUNCH_CHOICES := \
-    twrp_PLF110-user \
-    twrp_PLF110-userdebug
+    twrp_PLC110-user \
+    twrp_PLC110-userdebug
