@@ -29,7 +29,7 @@ param(
     [string]$VendorBootImg,
     [switch]$FromDevice,
     [switch]$Download,
-    [string]$StockUrl = 'https://b.krtl.net/oplus/PLC110_16'
+    [string]$StockUrl = 'https://file.hty1234.eu.org/'
 )
 
 $ErrorActionPreference = 'Stop'
