@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PREBUILT_DIR="${REPO_ROOT}/prebuilt"
 STOCK_DIR="${STOCK_DIR:-${REPO_ROOT}/stock}"
-STOCK_URL="${STOCK_URL:-https://file.hty1234.eu.org/}"
+STOCK_URL="${STOCK_URL:-https://file.hty1234.eu.org}"
 UNPACK_PY="${REPO_ROOT}/tools/unpack_bootimg.py"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
