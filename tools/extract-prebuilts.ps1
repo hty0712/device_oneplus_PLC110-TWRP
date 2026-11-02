@@ -4,9 +4,12 @@
 
 .DESCRIPTION
     Produces:
-      prebuilt/kernel                  stock GKI kernel (from boot.img)
-      prebuilt/dtb                     stock DTB (from vendor_boot.img)
-      prebuilt/vendor_ramdisk00.cpio.lz4  stock PLATFORM ramdisk fragment
+      prebuilt/kernel     stock GKI kernel (from boot.img)
+      prebuilt/dtb        stock DTB (from vendor_boot.img)
+      prebuilt/ramdisk    lib/modules (kernel modules + libmodprobe lists) and
+                          vendor/firmware (touch firmware) taken from the
+                          PLATFORM ramdisk and packed into the TWRP recovery
+                          ramdisk
 
     Sources, in order of preference:
       1. -BootImg / -VendorBootImg
@@ -117,9 +120,18 @@ if ($LASTEXITCODE -ne 0) { throw 'Failed to unpack vendor_boot.img' }
 
 Copy-Item (Join-Path $bootOut 'kernel') (Join-Path $prebuiltDir 'kernel') -Force
 Copy-Item (Join-Path $vendorOut 'dtb') (Join-Path $prebuiltDir 'dtb') -Force
-Copy-Item (Join-Path $vendorOut 'vendor_ramdisk00') (Join-Path $prebuiltDir 'vendor_ramdisk00.cpio.lz4') -Force
+
+# The kernel modules, the touch firmware and the first stage fstab live in the
+# factory PLATFORM ramdisk; they are repacked into our own PLATFORM fragment
+# instead of shipping the 40 MB factory one (see README).
+$ramdiskDir = Join-Path $prebuiltDir 'ramdisk'
+if (Test-Path $ramdiskDir) { Remove-Item -Recurse -Force $ramdiskDir }
+& $python (Join-Path $PSScriptRoot 'extract_ramdisk_files.py') `
+    --ramdisk (Join-Path $vendorOut 'vendor_ramdisk00') --dest $ramdiskDir
+if ($LASTEXITCODE -ne 0) { throw 'Failed to extract the ramdisk files' }
 
 Remove-Item -Recurse -Force $tmpDir
 Write-Host "[INFO] Prebuilts written to $prebuiltDir"
-Get-ChildItem $prebuiltDir | Where-Object { $_.Name -in @('kernel','dtb','vendor_ramdisk00.cpio.lz4') } |
+Get-ChildItem $prebuiltDir | Where-Object { $_.Name -in @('kernel','dtb') } |
     Select-Object Name, Length
+Get-ChildItem $ramdiskDir | Select-Object FullName

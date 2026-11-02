@@ -1,15 +1,34 @@
 # Stock Trustonic TEE / KeyMint / Gatekeeper services.
 #
-# TWRP mounts /vendor and /odm while parsing the vendor fstab and sets
-# fstab.additional=1 at that point.  The services are started from there so
-# their binaries and libraries are still reachable; vendor_boot's factory
-# PLATFORM ramdisk already loaded the Trustonic kernel modules
-# (mcDrvModule-ffa.ko, isee-ffa.ko, ffa_v11.ko, teeperf.ko).
+# TWRP parses the vendor fstab, mounts /vendor and /odm and sets
+# fstab.additional=1 at that point.  The services start from there so their
+# binaries and libraries are reachable; the recovery ramdisk already loaded the
+# Trustonic kernel modules (mcDrvModule-ffa.ko, isee-ffa.ko, ffa_v11.ko,
+# teeperf.ko) from /lib/modules.
 #
-# They are optional: if the vendor firmware does not provide them, init logs
-# a failure and TWRP continues without hardware-backed decryption.
+# They all run in the recovery domain on purpose.  init would otherwise label
+# mcDriverDaemon with the vendor-only mobicore_exec type, which does not exist
+# in the recovery policy ("Could not start service: Could not get process
+# context"), and the hal_* domains the KeyMint/Gatekeeper binaries inherit
+# cannot map the ramdisk linker:
+#
+#   avc: denied { map } for path="/system/bin/linker64" dev="rootfs"
+#        scontext=u:r:hal_gatekeeper_default:s0 tcontext=u:object_r:rootfs:s0
+#
+# which ends in SIGSEGV.  The recovery domain is permissive in TWRP, so the
+# daemons work with a plain seclabel.  They are optional: if the vendor
+# firmware does not provide them, init logs a failure and TWRP continues
+# without hardware-backed decryption.
 
-service mobicore /vendor/bin/mcDriverDaemon --P1 /mnt/vendor/persist/mcRegistry \
+# ueventd only applies /vendor/etc/ueventd.rc to devices that show up after it
+# parsed that file, so /dev/mobicore{,-user} are usually still created with the
+# plat rules (root-only). Restore the stock ownership before the daemon opens
+# them. init builtins keep this synchronous with the start below.
+#
+# The daemon is started as root: as "user system" it exits with status 6 a
+# millisecond after exec without ever reaching its first log line, and its
+# stderr (captured to /tmp/mcd.log by the wrapper) is the only way to see why.
+service mobicore /system/bin/sh /system/etc/mcdaemon.sh --P1 /mnt/vendor/persist/mcRegistry \
 	-r /vendor/app/mcRegistry/06090000000000000000000000000000.drbin \
 	-r /vendor/app/mcRegistry/020f0000000000000000000000000000.drbin \
 	-r /vendor/app/mcRegistry/05120000000000000000000000000000.drbin \
@@ -44,27 +63,40 @@ service mobicore /vendor/bin/mcDriverDaemon --P1 /mnt/vendor/persist/mcRegistry 
 	-r /odm/vendor/app/mcRegistry/033c0000000000000000000000000000.drbin \
 	-r /odm/vendor/app/mcRegistry/6b3f5fa0f8cf55a7be2582587d62d63a.drbin \
 	-r /odm/vendor/app/mcRegistry/031c0000000000000000000000000000.drbin
-    user system
-    group system
+    user root
+    group root
     class core
     priority -20
     disabled
+    seclabel u:r:recovery:s0
 
 service vendor.keymint-trustonic /vendor/bin/hw/android.hardware.security.keymint@3.0-service.trustonic
     class early_hal
     user system
     group system
     disabled
+    seclabel u:r:recovery:s0
 
 service vendor.gatekeeper-default /vendor/bin/hw/android.hardware.gatekeeper-service.trustonic
     class early_hal
     user system
     group system
     disabled
+    seclabel u:r:recovery:s0
 
 on property:fstab.additional=1
+    # Only init builtins here: an exec_start in this action makes init drop the
+    # commands that follow it, which silently skipped `start mobicore` at boot.
+    chown system system /dev/mobicore
+    chown system system /dev/mobicore-user
+    chmod 0660 /dev/mobicore
+    chmod 0660 /dev/mobicore-user
     start mobicore
-    start vendor.keymint-trustonic
 
+# mcDriverDaemon sets ro.vendor.trustonic.ready once the TEE answers.  Starting
+# KeyMint before that makes it abort in HAL_CONFIGURE with
+# "mcOpenTrustlet returned NO_FREE_INSTANCES" and leak the TA instance, so the
+# HALs wait for the daemon instead of racing it.
 on property:ro.vendor.trustonic.ready=true
+    start vendor.keymint-trustonic
     start vendor.gatekeeper-default

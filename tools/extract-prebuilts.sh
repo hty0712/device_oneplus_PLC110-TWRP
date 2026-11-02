@@ -1,6 +1,8 @@
 #!/bin/bash
 #
-# Extract the prebuilts needed to build the PLC110 TWRP vendor_boot image.
+# Extract the prebuilts needed to build the PLC110 TWRP vendor_boot image:
+# prebuilt/kernel, prebuilt/dtb and prebuilt/ramdisk (the stock kernel modules
+# and touch firmware taken from the factory PLATFORM ramdisk).
 #
 # Sources, in order of preference:
 #   1. --boot/--vendor-boot <file> (stock images)
@@ -114,7 +116,16 @@ python3 "${UNPACK_PY}" --boot_img "${VENDOR_BOOT_IMG}" --out "${TMP_DIR}/vendor_
 
 cp -f "${TMP_DIR}/boot/kernel" "${PREBUILT_DIR}/kernel"
 cp -f "${TMP_DIR}/vendor_boot/dtb" "${PREBUILT_DIR}/dtb"
-cp -f "${TMP_DIR}/vendor_boot/vendor_ramdisk00" "${PREBUILT_DIR}/vendor_ramdisk00.cpio.lz4"
+
+# The kernel modules, the touch firmware and the first stage fstab live in the
+# factory PLATFORM ramdisk; they are repacked into our own PLATFORM fragment
+# instead of shipping the 40 MB factory one (see README).
+rm -rf "${PREBUILT_DIR}/ramdisk"
+python3 "${REPO_ROOT}/tools/extract_ramdisk_files.py" \
+    --ramdisk "${TMP_DIR}/vendor_boot/vendor_ramdisk00" \
+    --dest "${PREBUILT_DIR}/ramdisk"
 
 echo "[INFO] Prebuilts written to ${PREBUILT_DIR}"
-ls -l "${PREBUILT_DIR}/kernel" "${PREBUILT_DIR}/dtb" "${PREBUILT_DIR}/vendor_ramdisk00.cpio.lz4"
+ls -l "${PREBUILT_DIR}/kernel" "${PREBUILT_DIR}/dtb"
+du -sh "${PREBUILT_DIR}/ramdisk/lib/modules" "${PREBUILT_DIR}/ramdisk/vendor/firmware"
+ls -l "${PREBUILT_DIR}/ramdisk/first_stage_ramdisk/fstab.mt6991"

@@ -109,6 +109,14 @@ jobs:
           -b "${{ inputs.DEVICE_TREE_BRANCH }}" "${{ inputs.DEVICE_PATH }}"
       working-directory: workspace
 
+    - name: Apply TWRP source patches
+      run: |
+        for patch in "${{ inputs.DEVICE_PATH }}"/tools/patches/*.patch; do
+          [ -e "${patch}" ] || continue
+          git -C bootable/recovery apply "${patch}"
+        done
+      working-directory: workspace
+
     - name: Extract prebuilts
       env:
         STOCK_URL: ${{ inputs.STOCK_URL }}
@@ -122,7 +130,7 @@ jobs:
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
         export LC_ALL=C
-        lunch "${{ inputs.MAKEFILE_NAME }}-userdebug"
+        lunch "${{ inputs.MAKEFILE_NAME }}-bp2a-userdebug"
         mka "${{ inputs.BUILD_TARGET }}"
       working-directory: workspace
 

@@ -1,0 +1,141 @@
+diff --git a/twrp.cpp b/twrp.cpp
+index 0a49256..85e546e 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -491,6 +491,13 @@ class twrp_startup_backend final : public gui2_backend::startup_backend, public
+ 		}
+ 		ProcessRecoveryMode(skip_decryption_, this);
+ 
++		// Nothing else is going to read the bootloader command, and leaving the
++		// "boot-recovery" that brought us here behind means every later reboot -
++		// including a long power-button press - boots recovery again instead of
++		// the system. Clear it once recovery finished coming up; TwReboot()
++		// rewrites it when the user asks for recovery explicitly.
++		TWFunc::ClearMiscBootCommand();
++
+ 		// Translate partition names using the active console message catalogue.
+ 		step(gui2_backend::startup_step::FINISHING);
+ 		PartitionManager.TranslatePartitionDisplayNames();
+diff --git a/twrp_functions.cpp b/twrp_functions.cpp
+index 207691c..45d1a30 100644
+--- a/twrp_functions.cpp
++++ b/twrp_functions.cpp
+@@ -37,6 +37,7 @@
+ #include <chrono>
+ #include <cstdio>
+ #include <cstdlib>
++#include <cstring>
+ #include <filesystem>
+ #include <format>
+ #include <fstream>
+@@ -543,6 +544,56 @@ void TWFunc::SetInstallResult(const int result) {
+ }
+ 
+ // reboot: Reboot the system. Return -1 on error, no return on success
++// MTK's LK reads the Android bootloader control block (BCB) from /misc on
++// every boot, and a pending "boot-recovery" command takes precedence over the
++// reboot reason and over the hardware key combos. Leaving it behind is what
++// makes every reboot - and every key combination - land in recovery again, so
++// the command field is rewritten right before rebooting.
++//
++// Only the 32-byte command field at offset 0 is touched: the A/B slot metadata
++// (bootloader_control) that the bootloader keeps at offset 2048 must survive.
++static bool WriteMiscBootCommand(const char* command) {
++  static const char* kMiscPaths[] = {
++      "/dev/block/by-name/misc",
++      "/dev/block/bootdevice/by-name/misc",
++      "/dev/block/platform/bootdevice/by-name/misc",
++  };
++
++  const char* device = nullptr;
++  for (const char* path : kMiscPaths) {
++    if (access(path, F_OK) == 0) {
++      device = path;
++      break;
++    }
++  }
++  if (device == nullptr) {
++    LOGERR("Unable to find the misc partition; leaving the boot command untouched\n");
++    return false;
++  }
++
++  std::array<char, 32> buffer{};
++  if (command != nullptr) {
++    std::strncpy(buffer.data(), command, buffer.size() - 1);
++  }
++
++  android::base::unique_fd fd(open(device, O_WRONLY | O_SYNC | O_CLOEXEC));
++  if (fd < 0) {
++    LOGERR("Unable to open '%s' for the boot command (%s)\n", device, strerror(errno));
++    return false;
++  }
++  if (pwrite(fd.get(), buffer.data(), buffer.size(), 0) != static_cast<ssize_t>(buffer.size())) {
++    LOGERR("Unable to write the boot command to '%s' (%s)\n", device, strerror(errno));
++    return false;
++  }
++  fsync(fd.get());
++  LOGINFO("BCB command set to '%s' on '%s'\n", buffer.data(), device);
++  return true;
++}
++
++void TWFunc::ClearMiscBootCommand() {
++  WriteMiscBootCommand(nullptr);
++}
++
+ int TWFunc::TwReboot(const RebootCommand command) {
+   DataManager::Flush();
+   UpdateLogFile();
+@@ -574,6 +625,7 @@ int TWFunc::TwReboot(const RebootCommand command) {
+ #endif
+       sync();
+       CheckAndRunScript("/system/bin/rebootsystem.sh", "reboot system");
++      ClearMiscBootCommand();
+ #ifdef ANDROID_RB_PROPERTY
+       return property_set(ANDROID_RB_PROPERTY, "reboot,");
+ #elif defined(ANDROID_RB_RESTART)
+@@ -583,12 +635,15 @@ int TWFunc::TwReboot(const RebootCommand command) {
+ #endif
+     case RECOVERY:
+       CheckAndRunScript("/system/bin/rebootrecovery.sh", "reboot recovery");
++      WriteMiscBootCommand("boot-recovery");
+       return android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,recovery");
+     case BOOTLOADER:
+       CheckAndRunScript("/system/bin/rebootbootloader.sh", "reboot bootloader");
++      ClearMiscBootCommand();
+       return android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,bootloader");
+     case POWER_OFF:
+       CheckAndRunScript("/system/bin/poweroff.sh", "power off");
++      ClearMiscBootCommand();
+ #ifdef ANDROID_RB_PROPERTY
+       return property_set(ANDROID_RB_PROPERTY, "shutdown,");
+ #elif defined(ANDROID_RB_POWEROFF)
+@@ -598,11 +653,14 @@ int TWFunc::TwReboot(const RebootCommand command) {
+ #endif
+     case DOWNLOAD:
+       CheckAndRunScript("/system/bin/rebootdownload.sh", "reboot download");
++      ClearMiscBootCommand();
+       return android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,download");
+     case EDL:
+       CheckAndRunScript("/system/bin/rebootedl.sh", "reboot edl");
++      ClearMiscBootCommand();
+       return android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,edl");
+     case FSATBOOTD:
++      ClearMiscBootCommand();
+       return android::base::SetProperty(ANDROID_RB_PROPERTY, "reboot,fastboot");
+     default:
+       return -1;
+diff --git a/twrp_functions.hpp b/twrp_functions.hpp
+index a11dc78..f37bb9c 100644
+--- a/twrp_functions.hpp
++++ b/twrp_functions.hpp
+@@ -143,6 +143,10 @@ public:
+   // Prepares the device for rebooting
+   static int TwReboot(RebootCommand command);
+ 
++  // Clears the Android bootloader control block command on /misc so the
++  // bootloader does not boot back into recovery.
++  static void ClearMiscBootCommand();
++
+   // checks for the existence of a script, chmods it to 755, then runs it
+   static void CheckAndRunScript(const char* script_file, const char* display_name);
+ 

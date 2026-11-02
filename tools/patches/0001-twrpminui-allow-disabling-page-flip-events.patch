@@ -1,0 +1,51 @@
+diff --git a/twrpminui/graphics_drm.cpp b/twrpminui/graphics_drm.cpp
+index a0f2c0c..76aa5c6 100644
+--- a/twrpminui/graphics_drm.cpp
++++ b/twrpminui/graphics_drm.cpp
+@@ -234,6 +234,11 @@ static int displayed_buffer = -1;
+ static bool legacy_page_flip = true;
+ static bool atomic_page_flip = true;
+ static int atomic_page_flip_failures = 0;
++// MTK's DDP treats a page-flip event on a CRTC that cannot hand out a
++// vblank reference as a fatal AEE exception ("invalid vblank"), and the
++// vendor handler resets the device a few seconds later. Blocking commits
++// never carry an event, so let a device opt out of flip events.
++static bool page_flip_events = true;
+ static bool direct_scanout;
+ static bool warned_empty_damage;
+ static uint64_t stats_frames;
+@@ -1117,7 +1122,7 @@ static int present_legacy_buffer(int buffer) {
+   if (displayed_buffer == buffer)
+     return 0;
+ 
+-  if (legacy_page_flip) {
++  if (legacy_page_flip && page_flip_events) {
+     bool waiting = true;
+     int ret = drmModePageFlip(drm_fd, main_monitor_crtc->crtc_id,
+                               drm_surfaces[buffer]->fb_id,
+@@ -1203,7 +1208,7 @@ static int present_atomic_buffer(int buffer) {
+   if (displayed_buffer == buffer)
+     return 0;
+ 
+-  if (atomic_page_flip) {
++  if (atomic_page_flip && page_flip_events) {
+     bool waiting = true;
+     int ret = commit_atomic_buffer(
+         buffer, DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, &waiting);
+@@ -1379,6 +1384,8 @@ static GRSurface* drm_init(minui_backend* backend __unused) {
+   legacy_page_flip = true;
+   atomic_page_flip = true;
+   atomic_page_flip_failures = 0;
++  page_flip_events =
++      android::base::GetBoolProperty("twrp.drm.page_flip_events", true);
+   direct_scanout = legacy_modeset ||
+       android::base::GetBoolProperty("twrp.drm.direct_scanout", true);
+   warned_empty_damage = false;
+@@ -1668,6 +1675,7 @@ static void drm_exit(minui_backend* backend __unused) {
+     legacy_page_flip = true;
+     atomic_page_flip = true;
+     atomic_page_flip_failures = 0;
++    page_flip_events = true;
+     spr_enabled = 0;
+     spr_bypass = 0;
+     spr_prop_name.clear();

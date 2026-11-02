@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Recovery manifest fragment for the Trustonic SecureClock HAL.
+
+    The Trustonic KeyMint 3.0 HAL registers several AIDL instances before it
+    starts serving, and it aborts on the first one servicemanager rejects:
+
+      adding keymint service instance: ...IKeyMintDevice/default      <- keymint fragment
+      adding keymint service instance: ...ISecureClock/default        <- this file
+      F ...: Check failed: status == STATUS_OK                        -> SIGABRT
+
+    Recovery's servicemanager only reads /system/etc/vintf/manifest/, so every
+    instance the HAL registers needs a fragment here.
+    Keep in sync with
+    /vendor/etc/vintf/manifest/android.hardware.security.secureclock-service.trustonic.xml.
+-->
+<manifest version="8.0" type="device">
+    <hal format="aidl">
+        <name>android.hardware.security.secureclock</name>
+        <fqname>ISecureClock/default</fqname>
+    </hal>
+</manifest>

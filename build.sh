@@ -127,12 +127,40 @@ setup_workspace() {
 }
 
 # ============================================================
+# TWRP source patches
+# ============================================================
+# The device needs a small twrpminui change, so keep it as a patch instead of
+# asking every builder to edit bootable/recovery by hand.
+apply_recovery_patches() {
+    local patches_dir="${TWRP_DIR}/${DEVICE_PATH}/tools/patches"
+    local project="${TWRP_DIR}/bootable/recovery"
+
+    [ -d "${patches_dir}" ] || return 0
+    [ -d "${project}" ] || return 0
+
+    log_step "Applying TWRP source patches..."
+    local patch
+    for patch in "${patches_dir}"/*.patch; do
+        [ -e "${patch}" ] || continue
+        if git -C "${project}" apply --reverse --check "${patch}" >/dev/null 2>&1; then
+            log_info "$(basename "${patch}") already applied"
+        elif git -C "${project}" apply "${patch}"; then
+            log_info "Applied $(basename "${patch}")"
+        else
+            log_error "Could not apply $(basename "${patch}") to bootable/recovery"
+            exit 1
+        fi
+    done
+}
+
+# ============================================================
 # Prebuilts
 # ============================================================
 prepare_prebuilts() {
     local device_dir="${TWRP_DIR}/${DEVICE_PATH}"
     local need=0
-    for f in kernel dtb vendor_ramdisk00.cpio.lz4; do
+    for f in kernel dtb ramdisk/lib/modules/modules.load ramdisk/lib/modules/modules.dep \
+             ramdisk/first_stage_ramdisk/fstab.mt6991; do
         if [ ! -s "${device_dir}/prebuilt/${f}" ]; then
             log_warn "Missing prebuilt/${f}"
             need=1
@@ -149,7 +177,7 @@ prepare_prebuilts() {
         exit 1
     fi
 
-    log_step "Extracting stock kernel / dtb / vendor PLATFORM ramdisk"
+    log_step "Extracting stock kernel / dtb / vendor ramdisk payload"
     ( cd "${device_dir}" && bash tools/extract-prebuilts.sh )
 }
 
@@ -165,7 +193,7 @@ build_twrp() {
     export ALLOW_MISSING_DEPENDENCIES=true
     export LC_ALL=C
 
-    lunch "twrp_${DEVICE}-userdebug"
+    lunch "twrp_${DEVICE}-bp2a-userdebug"
     mka vendorbootimage
 
     local output_img="${TWRP_DIR}/out/target/product/${DEVICE}/vendor_boot.img"
@@ -252,6 +280,7 @@ main() {
 
     check_prerequisites
     setup_workspace
+    apply_recovery_patches
     prepare_prebuilts
     build_twrp
     print_flash_instructions

@@ -1,8 +1,8 @@
 # Prebuilt kernel (large binary)
 prebuilt/kernel
-# Stock DTB and vendor_boot PLATFORM ramdisk (large binaries)
+# Stock DTB, kernel modules and touch firmware (large binaries)
 prebuilt/dtb
-prebuilt/vendor_ramdisk00.cpio.lz4
+prebuilt/ramdisk/
 # Local stock images used to regenerate the prebuilts
 stock/
 

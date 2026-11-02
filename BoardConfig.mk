@@ -28,7 +28,6 @@ TARGET_CPU_ABI := arm64-v8a
 TARGET_CPU_ABI2 :=
 TARGET_CPU_VARIANT := generic
 TARGET_CPU_VARIANT_RUNTIME := cortex-a55
-TARGET_USES_64_BIT_BINDER := true
 TARGET_SUPPORTS_64_BIT_APPS := true
 
 # Bootloader / platform
@@ -88,11 +87,23 @@ AB_OTA_PARTITIONS += \
     my_region \
     my_stock
 
-# Recovery is a ramdisk fragment inside vendor_boot (like stock)
+# Recovery is the 0x2 RECOVERY fragment of vendor_boot.
+#
+# The bootloader loads init_boot's ramdisk plus every vendor_boot fragment into
+# one 64 MiB initrd buffer, so the factory PLATFORM ramdisk (40 MB) and the TWRP
+# RECOVERY ramdisk cannot be shipped together.  The PLATFORM fragment is
+# repacked from prebuilt/ramdisk instead (16 MB: first stage fstab, kernel
+# modules and touch firmware), see build/tasks/recovery_ramdisk_files.mk; it is
+# what a normal power-on boots with, while this RECOVERY fragment is only read in
+# recovery mode.
+#
+# The 0x2 RECOVERY fragment is mandatory: when booting in recovery mode the
+# bootloader looks it up in the fragment table and asserts
+# (boot_info.c: "idx < entry_cnt") when it is missing, which is why TWRP has to
+# stay a separate fragment instead of being merged into PLATFORM.
 BOARD_USES_GENERIC_KERNEL_IMAGE := true
 BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
-BOARD_VENDOR_RAMDISK_FRAGMENT.recovery.MKBOOTIMG_ARGS += --ramdisk_name recovery
 TARGET_NO_RECOVERY := true
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
 
@@ -129,14 +140,11 @@ TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
 BOARD_USERDATAIMAGE_FILE_SYSTEM_TYPE := f2fs
 BOARD_PROPERTY_OVERRIDES_SPLIT_ENABLED := true
+# Keep the default TARGET_COPY_OUT_* for product/system_ext/odm/dlkm: setting
+# them to 'product'/... requires BOARD_*IMAGE_FILE_SYSTEM_TYPE, which this
+# recovery-only tree does not build.
 TARGET_COPY_OUT_VENDOR := vendor
-TARGET_COPY_OUT_ODM := odm
-TARGET_COPY_OUT_PRODUCT := product
 TARGET_COPY_OUT_SYSTEM := system
-TARGET_COPY_OUT_SYSTEM_EXT := system_ext
-TARGET_COPY_OUT_VENDOR_DLKM := vendor_dlkm
-TARGET_COPY_OUT_ODM_DLKM := odm_dlkm
-TARGET_COPY_OUT_SYSTEM_DLKM := system_dlkm
 
 # Verified boot
 BOARD_AVB_ENABLE := true
@@ -160,16 +168,28 @@ BOOT_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
 TARGET_SYSTEM_PROP += $(DEVICE_PATH)/system.prop
 TARGET_VENDOR_PROP += $(DEVICE_PATH)/vendor.prop
 
-# Display - 1272x2800 panel, 141 px top cutout
-TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
+# Display - 1272x2800 panel, 141 px top cutout.
+#
+# TW_SCREEN_BLANK_ON_BOOT is deliberately not set: blanking and unblanking the
+# MTK DRM pipeline right after the takeover commit makes this panel stop
+# reporting vblank ("invalid vblank" spam + DPC runtime PM underflow) and the
+# OPLUS exception handler resets the device a few seconds later.
+TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888
+TARGET_SCREEN_WIDTH := 1272
+TARGET_SCREEN_HEIGHT := 2800
+TARGET_SCREEN_DENSITY := 560
 TW_THEME := portrait_hdpi
 TW_FRAMERATE := 120
-TW_SCREEN_BLANK_ON_BOOT := true
 TW_NO_SCREEN_BLANK := true
 TW_Y_OFFSET := 141
 TW_H_OFFSET := -141
 TW_STATUS_ICONS_ALIGN := center
 TW_BRIGHTNESS_PATH := "/sys/class/leds/lcd-backlight/brightness"
+# leds-mtk exposes 1..4094 here (max_brightness / logic_max_brightness), while
+# TWRP defaults TW_MAX_BRIGHTNESS to 255. Without this the slider saturates at
+# 255, which the panel driver maps to ~6 % DBV - visibly dim even at 100 %.
+TW_MAX_BRIGHTNESS := 4094
+TW_DEFAULT_BRIGHTNESS := 1638
 
 # No vibrator HAL is exposed on this device; aw8697 is driven through sysfs
 TW_INPUT_BLACKLIST := "hbtp_vm"

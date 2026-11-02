@@ -9,6 +9,20 @@ on early-init
     # Stock USB gadget controller
     setprop sys.usb.controller "16701000.usb0"
     setprop sys.usb.ffs.aio_compat 1
+    # Keep /vendor mounted: mcDriverDaemon, KeyMint and Gatekeeper are executed
+    # from there by init long after TWRP's startup cleanup, which would
+    # otherwise unmount it and leave every retry failing with
+    # "/vendor/bin/mcDriverDaemon: inaccessible or not found".
+    setprop ro.twrp.keep_vendor_mounted 1
+    # The MTK DDP reports a page flip carrying a flip event but no valid vblank
+    # reference to the vendor AEE handler, which resets the device ~12 s later.
+    # Blocking commits (no event) keep the display working.
+    setprop twrp.drm.page_flip_events 0
+    # keystore2 is declared `critical window=0` and panics as soon as the
+    # Trustonic Keymint HAL is unavailable (it is, until the Kinibi daemon
+    # works). init aborts with a FATAL log on the 5th crash, which panics the
+    # kernel and reboots the phone ~30 s into TWRP. Keep the UI alive.
+    setprop init.svc_debug.no_fatal.keystore2 1
 
 on init
     # Provide the conventional /dev/block/bootdevice path used by TWRP scripts

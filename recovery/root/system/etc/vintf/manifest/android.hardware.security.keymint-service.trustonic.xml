@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Recovery manifest fragment for the Trustonic KeyMint HAL.
+
+    Recovery's servicemanager (VintfObjectRecovery) only reads
+    /system/etc/vintf/manifest.xml plus the fragments in
+    /system/etc/vintf/manifest/, never the device manifest on /vendor. Without a
+    declaration here AServiceManager_addService() rejects the HAL with
+    EX_ILLEGAL_ARGUMENT ("Could not find android.hardware.security.keymint.
+    IKeyMintDevice/default in the VINTF manifest"), which is fatal for the HAL:
+
+      I ...: adding keymint service instance: ...IKeyMintDevice/default
+      F ...: Check failed: status == STATUS_OK   -> SIGABRT
+
+    Keep this in sync with
+    /vendor/etc/vintf/manifest/android.hardware.security.keymint-service.trustonic.xml.
+-->
+<manifest version="8.0" type="device">
+    <hal format="aidl">
+        <name>android.hardware.security.keymint</name>
+        <version>3</version>
+        <fqname>IKeyMintDevice/default</fqname>
+    </hal>
+    <hal format="aidl">
+        <name>android.hardware.security.keymint</name>
+        <version>3</version>
+        <fqname>IRemotelyProvisionedComponent/default</fqname>
+    </hal>
+</manifest>
