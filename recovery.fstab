@@ -52,6 +52,13 @@ my_manifest /my_manifest erofs ro wait,slotselect,logical,first_stage_mount,nofa
 /dev/block/by-name/nvdata /mnt/vendor/nvdata ext4 noatime,nosuid,nodev,noauto_da_alloc,discard wait,check,formattable
 /dev/block/by-name/nvcfg /mnt/vendor/nvcfg ext4 noatime,nosuid,nodev,noauto_da_alloc,commit=1,nodelalloc wait,check,formattable
 
+# Bootloader control block (BCB). init reads this very file through fs_mgr in
+# recovery (get_misc_blk_device()), so /misc has to be listed here before it can
+# write the reboot target: without it "adb reboot recovery" / "reboot sideload"
+# log "failed to find /misc partition" and init returns without rebooting.
+# TWRP itself never mounts the partition.
+/dev/block/by-name/misc /misc emmc defaults defaults
+
 # Removable storage
 /devices/platform/16701000.usb0/16700000.xhci* auto vfat defaults voldmanaged=usbotg:auto
 /devices/platform/16711000.usb1/16710000.xhci* auto vfat defaults voldmanaged=usbotg:auto

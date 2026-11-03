@@ -3,12 +3,14 @@
 import /init.recovery.trustonic.rc
 
 on early-init
-    # Keep TWRP's generic configfs gadget from init.rc out of the way; the
-    # device USB rc below builds the gadget itself and flips this to 1.
+    # The device USB rc below builds the gadget itself and flips this to 1.
     setprop sys.usb.configfs 0
     # Stock USB gadget controller
     setprop sys.usb.controller "16701000.usb0"
-    setprop sys.usb.ffs.aio_compat 1
+    # Do not set sys.usb.ffs.aio_compat here. It makes the MTP child use
+    # TWRP's MtpFfsCompatHandle, whose start() never writes the functionfs
+    # descriptors, so sys.usb.ffs.mtp.ready stays 0, init never binds ffs.mtp
+    # and enabling MTP tears the whole gadget down - adb included.
     # Keep /vendor mounted: mcDriverDaemon, KeyMint and Gatekeeper are executed
     # from there by init long after TWRP's startup cleanup, which would
     # otherwise unmount it and leave every retry failing with

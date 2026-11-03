@@ -232,6 +232,53 @@ and the phone reboots a few seconds later. Blocking commits never set
 * `recovery/root/init.recovery.mt6991.rc` sets `twrp.drm.page_flip_events 0`
   in `on early-init`.
 
+### USB: the device tree owns the gadget
+
+TWRP's `etc/init.rc` ships its own configfs USB rules for `adb`, `sideload` and
+`fastboot`, gated on `sys.usb.configfs`. They overlap with
+[`recovery/root/init.recovery.usb.rc`](./recovery/root/init.recovery.usb.rc),
+which builds the same gadget with the OPlus VID/PID and adds `mass_storage`
+and MTP. Both sets of triggers ran; because init executes actions in
+registration order the built-in `adb` rule bound the UDC first, so the device
+rule then failed (`symlink .../b.1/f1: File exists`,
+`write .../UDC: Device or resource busy`) and `idProduct` was written twice.
+
+`tools/patches/0004-twrp-init-device-tree-owns-usb.patch` removes the gadget,
+UDC and functionfs rules plus the `adb`/`fastboot` service starts from
+`etc/init.rc`; the `adbd`/`fastbootd` service definitions, `mount pstore` and
+`setprop sys.usb.config adb` stay. `init.recovery.usb.rc` is now the only place
+that configures USB: it starts `adbd` for `adb`, `mtp,adb`, `sideload` and
+`mass_storage,adb`, and `fastbootd` for `fastboot`.
+
+### MTP: `sys.usb.ffs.aio_compat` must stay unset
+
+Turning MTP on used to kill the whole USB gadget - adb and MTP both vanished
+until MTP was turned off again.
+
+`TWPartitionManager::EnableMtp()` starts with `sys.usb.config=none`, which
+unbinds the gadget and stops adbd, and the `mtp,adb` bind in
+`init.recovery.usb.rc` only runs once `sys.usb.ffs.mtp.ready` is 1. That
+property is set by `android::writeDescriptors()` in `mtp/MtpDescriptors.cpp`,
+which only `MtpFfsHandle::start()` calls. With `sys.usb.ffs.aio_compat=1`
+`MtpServer` picks `MtpFfsCompatHandle` instead (`mtp/MtpServer.cpp`), whose
+`start()` goes straight to `openEndpoints()`: the descriptors were never
+written, so `/dev/usb-ffs/mtp/ep1..ep3` do not exist yet, the open fails and
+the child retries every 800 ms forever. `ffs.mtp.ready` never flips, init never
+binds the UDC, and nothing re-attaches adb.
+
+The kernel provides AIO (`/proc/sys/fs/aio-max-nr` = 65536, `aio-nr` in use),
+so the device keeps `sys.usb.ffs.aio_compat` unset and uses `MtpFfsHandle`.
+When MTP is broken the recovery log stops after `I:[MTP] Starting MTP`; when it
+works it continues with:
+
+```
+I:[MTP] created new TwrpMtpServer object
+I:[MTP] mtppipe add storage 65545 '/data/media/0'
+```
+
+and `getprop sys.usb.ffs.mtp.ready`, `getprop sys.usb.state` report `1` and
+`mtp,adb` with `ep0`..`ep3` present in `/dev/usb-ffs/mtp`.
+
 ### Reboot loop: keystore2 is a `critical` service
 
 `/system/etc/init/keystore2.rc` in the recovery ramdisk declares
@@ -473,6 +520,41 @@ until `fastboot --set-active=<slot>` or the field is restored:
 0x0000  boot-recovery            <- BCB command
 0x0800  _ b \0 \0 B C A B 001 002 ...   <- slot_suffix + bootloader_control
 ```
+
+### `adb reboot recovery` stalls: `/misc` must be in `recovery.fstab`
+
+`adb reboot recovery` never rebooted and adb waited forever, while a plain
+`adb reboot` worked and booted the system.
+
+`HandlePowerctlMessage()` writes `boot-recovery` into the BCB *before* the
+shutdown starts, and returns without rebooting when it cannot:
+
+```
+init: Received sys.powerctl='reboot,recovery' from pid: 6631 (/system/bin/reboot)
+init: Got shutdown_command 'reboot,recovery' Calling HandlePowerctlMessage()
+init: Failed to read bootloader message: failed to find /misc partition
+init: Failed to set bootloader message: failed to find /misc partition
+```
+
+No `Reboot start` follows. A plain `reboot` uses the `shell` target, never
+touches the BCB, and therefore worked.
+
+`get_misc_blk_device()` (`libbootloader_message`) searches
+`ReadDefaultFstab()` for an entry whose mount point is `/misc`. In recovery the
+TWRP `fs_mgr` resolves that to **`/etc/recovery.fstab`**, the file this device
+tree ships; the stock `/first_stage_ramdisk/fstab.mt6991` and
+`/vendor/etc/fstab.mt6991` both list `/misc`, but init does not read them here.
+The entry is therefore part of `recovery.fstab`:
+
+```
+/dev/block/by-name/misc /misc emmc defaults defaults
+```
+
+Checked on the device: appending that line at runtime makes
+`adb shell reboot recovery` come back to recovery in ~35 s, without it init logs
+the two errors and stays put. `adb reboot sideload` and `adb reboot fastboot`
+take the same path. TWRP never mounts `/misc`, and the vendor fstab pass only
+refines `/data` and `/metadata`, so the extra partition is inert for TWRP.
 
 Needs testing / extra work:
 
