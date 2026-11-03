@@ -34,7 +34,7 @@ on:
       STOCK_URL:
         description: 'Stock image mirror (boot_b.img / vendor_boot_b.img)'
         required: true
-        default: 'https://file.hty1234.eu.org/'
+        default: 'https://file.hty1234.eu.org'
 
 jobs:
   build:
