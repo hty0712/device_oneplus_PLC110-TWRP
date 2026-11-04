@@ -1,0 +1,118 @@
+Resolve nested mount points before shortening to a storage root.
+
+TWFunc::GetRootPath() truncates a path to its first component so that
+'/data/media/0/x.zip' becomes '/data'. The partition lookups reused it, so a
+partition mounted below the first level (e.g. /mnt/vendor/nvdata, which MTK
+device trees use for nvdata, nvcfg, protect_f and protect_s) resolved to
+'/mnt'. FindPartitionByPath() then failed to see the partition that
+ProcessFstab() had just created, so AddRemainingTwrpFlags() added a second
+partition for the same mount point (duplicate rows in the Mount list) and
+MountByPath()/WipeByPath()/... could not find any partition at all.
+
+Look the exact mount point up first and only fall back to GetRootPath().
+
+--- a/partitions.hpp	2026-11-04 20:17:17.229899781 +0800
++++ b/partitions.hpp	2026-11-04 20:17:17.235867852 +0800
+@@ -952,6 +952,11 @@
+   // member access relies on the TWPartition friendship
+   static bool MatchesPath(const TWPartition* p, const std::string& path);
+ 
++  // Resolves a path to the mount point of the partition that owns it. Nested
++  // mount points (/mnt/vendor/nvdata) have to match exactly before the
++  // root-path shortening meant for file paths (/data/media/0/x -> /data) runs.
++  std::string ResolvePartitionPath(const std::string& path) const;
++
+   // Sets up settings storage
+   static void SetupSettingsStoragePartition(const TWPartition* part);
+ 
+--- a/partitionmanager.cpp	2026-11-04 20:17:17.233334702 +0800
++++ b/partitionmanager.cpp	2026-11-04 20:17:17.238263762 +0800
+@@ -123,6 +123,16 @@
+          || (!p->symlink_mount_point_.empty() && p->symlink_mount_point_ == path);
+ }
+ 
++std::string TWPartitionManager::ResolvePartitionPath(const std::string& path) const {
++  std::string candidate = path;
++  if (candidate.empty() || candidate.front() != '/') candidate.insert(0, 1, '/');
++  while (candidate.size() > 1 && candidate.back() == '/') candidate.pop_back();
++  for (const TWPartition* partition : partitions_) {
++    if (MatchesPath(partition, candidate)) return candidate;
++  }
++  return TWFunc::GetRootPath(path);
++}
++
+ TWPartitionManager::TWPartitionManager() {
+   mtp_was_enabled = false;
+   mtp_write_fd = -1;
+@@ -822,7 +832,7 @@
+   twrp_operation_executor::guard transaction(twrp_operation_executor::instance().mutex());
+   int ret = false;
+   bool found = false;
+-  const std::string local_path = TWFunc::GetRootPath(Path);
++  const std::string local_path = ResolvePartitionPath(Path);
+ 
+   if (local_path == "/tmp" || local_path == "/") return true;
+ 
+@@ -849,7 +859,7 @@
+   twrp_operation_executor::guard transaction(twrp_operation_executor::instance().mutex());
+   int ret = false;
+   bool found = false;
+-  const std::string local_path = TWFunc::GetRootPath(path);
++  const std::string local_path = ResolvePartitionPath(path);
+ 
+   // Iterate through all partitions
+   for (const TWPartition* partition : partitions_) {
+@@ -896,7 +906,7 @@
+ TWPartition* TWPartitionManager::FindPartitionByPath(const std::string& Path) const {
+   // Serialize traversal with hotplug changes; callers must protect pointer use too.
+   twrp_operation_executor::guard transaction(twrp_operation_executor::instance().mutex());
+-  std::string local_path = TWFunc::GetRootPath(Path);
++  std::string local_path = ResolvePartitionPath(Path);
+ 
+   if (local_path == "/system") local_path = GetAndroidRootPath();
+   for (TWPartition* partition : partitions_) {
+@@ -1498,7 +1508,7 @@
+ int TWPartitionManager::WipeByPath(const std::string& Path) const {
+   int ret = false;
+   bool found = false;
+-  std::string local_path = TWFunc::GetRootPath(Path);
++  std::string local_path = ResolvePartitionPath(Path);
+ 
+   if (local_path == "/system") local_path = GetAndroidRootPath();
+   if (Path == "/cache") {
+@@ -1538,7 +1548,7 @@
+                                    const std::string& new_file_system) const {
+   int ret = false;
+   bool found = false;
+-  const std::string local_path = TWFunc::GetRootPath(Path);
++  const std::string local_path = ResolvePartitionPath(Path);
+ 
+   // Iterate through all partitions
+   for (TWPartition* partition : partitions_) {
+@@ -1698,7 +1708,7 @@
+ int TWPartitionManager::RepairByPath(const std::string& Path, const bool display_error) const {
+   int ret = false;
+   bool found = false;
+-  const std::string local_path = TWFunc::GetRootPath(Path);
++  const std::string local_path = ResolvePartitionPath(Path);
+ 
+   if (local_path == "/tmp" || local_path == "/") return true;
+ 
+@@ -1725,7 +1735,7 @@
+ int TWPartitionManager::ResizeByPath(const std::string& Path, const bool display_error) const {
+   int ret = false;
+   bool found = false;
+-  const std::string local_path = TWFunc::GetRootPath(Path);
++  const std::string local_path = ResolvePartitionPath(Path);
+ 
+   if (local_path == "/tmp" || local_path == "/") return true;
+ 
+@@ -3040,7 +3050,7 @@
+ }
+ 
+ void TWPartitionManager::RemovePartitionByPath(const std::string& Path) {
+-  const std::string local_path = TWFunc::GetRootPath(Path);
++  const std::string local_path = ResolvePartitionPath(Path);
+ 
+   // First-match removal: erase the first partition whose mount_point_ (or
+   // symlink_mount_point_) equals local_path, then stop. No `delete` here —

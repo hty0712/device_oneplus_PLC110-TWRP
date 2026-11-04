@@ -85,6 +85,39 @@ budget.
 `build/tasks/recovery_ramdisk_files.mk` repacks `prebuilt/ramdisk` into the
 PLATFORM fragment on every compile.
 
+### Entering recovery from the bootloader
+
+The bootloader (LK) never selects recovery from a key press. MTK's `blxboot`
+enters fastboot when its download key is held and OPPO's build runs
+`vol_down_key_check()` for the same purpose, so a held Volume Down sets
+`g_boot_mode = 99` (`FASTBOOT_BOOT`). `boot_mode_check()` only takes
+`RECOVERY_BOOT` (2) from the `reboot,recovery` restart reason, i.e. the
+`boot-recovery` command in `/misc` that `adb reboot recovery`, the TWRP reboot
+menu and `fastboot reboot recovery` write. Bootloader log (`expdb`) from this
+device:
+
+```
+# plain power-on
+vol_down_key_check:197: vol_down_key_check gpio condition is 11   (printed twice)
+boot_mode_check:g_boot_mode is set 0                                -> NORMAL_BOOT
+
+# Volume Down held
+vol_down_key_check:197: vol_down_key_check gpio condition is 11    (printed once)
+boot_mode_check:g_boot_mode is set 99                               -> FASTBOOT_BOOT
+notify_enter_fastboot:122: Notify enter fastboot.
+starting app fastboot
+
+# fastboot reboot recovery
+fastboot: reboot-recovery
+HALT: action = 1, reason = 7                                        -> next boot is recovery
+```
+
+Volume Up does not help either: the preloader reports it
+(`Vol Up detected. Log Keep on.`) but those boots still end with
+`boot_mode_check:g_boot_mode is set 0`. The keypad data is parsed
+(`get_kpd_dts_info:141: kpd_hw_recovery_key = 17, kpd_hw_factory_key = 0`)
+but no key path in `boot_mode_check()` uses it.
+
 ## Requirements
 
 * Ubuntu 22.04/24.04 (or WSL2 with Ubuntu)
@@ -182,10 +215,10 @@ fastboot flash vendor_boot_b vendor_boot.img
 fastboot reboot recovery
 ```
 
-If `fastboot reboot recovery` is not supported by the bootloader, power off
-and use the hardware key combination (Volume Down + Power). A normal power-on
-does not reach Android while this image is flashed: the factory PLATFORM
-ramdisk it depends on is replaced, so always boot TWRP through recovery mode.
+There is no hardware key combination that boots recovery on this bootloader:
+Volume Down at power-on only lands in fastboot (see [Entering recovery from
+the bootloader](#entering-recovery-from-the-bootloader)). Without adb, power
+off, hold Volume Down while powering on, then run `fastboot reboot recovery`.
 
 The image carries a self-signed AVB hash footer. On an unlocked bootloader it
 boots as-is; if the bootloader still refuses it, flash a verity/verification
@@ -206,7 +239,9 @@ Working (expected, based on the stock ramdisk contents and flags):
 * ADB / MTP / sideload
 * Mounting `/system`, `/vendor`, `/product`, `/odm` and all OPlus dynamic
   partitions
+* Mounting `nvdata`, `nvcfg`, `protect_f` and `protect_s`
 * Flashing images and zips, backup/restore of the boot images
+* Vibration (haptics) through the `aw8697` sysfs LED
 
 ### MTK display: page-flip events must stay disabled
 
@@ -565,8 +600,74 @@ Needs testing / extra work:
   daemons are expected to stay resident.
 * Fastbootd (the TWRP mock boot control HAL is used; slot switching depends
   on the vendor `IBootControl` service).
-* Vibration uses the `aw8697` sysfs LED; no AIDL vibrator HAL is exposed.
 * WiFi is not enabled (no firmware setup is included).
+
+### Haptics: `aw8697` needs its RAM firmware from the ramdisk
+
+`DataManager::Vibrate()` writes `duration` and then `activate` to
+`/sys/class/leds/vibrator`, and the driver answered every write with
+
+```
+[haptic_hv]activate_store: value=1
+[haptic_hv]activate_store: ram init failed, not allow to play!
+```
+
+`haptic.ko` loads its waveform in `ram_update` during probe and again through an
+hrtimer that retries 20 times (`load_cont1` … `load_cont20`), all within the
+first ~30 s of boot:
+
+```
+[haptic_hv]ram_update:170Hz haptic bin name aw8697_haptic_170.bin
+haptic_hv 5-005a: Direct firmware load for aw8697_haptic_170.bin failed with error -2
+[haptic_hv]ram_load: failed to read ram firmware!
+```
+
+The firmware is not in `/vendor/firmware`; it ships in **`odm`**
+(`/odm/firmware/aw8697_haptic_170.bin`, `_soft` variant and `aw8697_rtp.bin`),
+and TWRP never mounts `odm` at that point. The kernel searches only
+`/sys/module/firmware_class/parameters/path` (a single directory, `/vendor/firmware`
+here), so the odm copy is unreachable. Proof: mounting `odm` and running
+
+```
+echo -n /odm/firmware > /sys/module/firmware_class/parameters/path
+echo 1 > /sys/class/leds/vibrator/ram_update
+```
+
+makes `ram_load` report `check sum pass` → `container_update` → `ram firmware
+update complete`, and `activate` plays in `ram loop mode`.
+
+The three files are therefore committed under
+[`recovery/root/vendor/firmware/`](./recovery/root/vendor/firmware), which the
+recovery ramdisk overlay unpacks over the initramfs `/vendor/firmware`. `init`
+loads the module at ~3.1 s, before the erofs `/vendor` is mounted, so the very
+first `ram_update` already finds them. (`aw8697.ko` is also in the stock module
+set and always fails with `aw8697_read_chipid unsupported device revision
+(0x82)`; the working driver for this panel is `haptic.ko`.)
+
+### Mounting `/mnt/vendor/*`: TWRP truncates the path to `/mnt`
+
+`nvdata`, `nvcfg`, `protect_f` and `protect_s` appeared **twice** in the Mount
+list and neither row worked. TWRP's `TWFunc::GetRootPath()` shortens a path to
+its first component so that `/data/media/0/x.zip` becomes `/data`, and every
+partition lookup reused it:
+
+```
+static bool MatchesPath(...) -> mount_point_ == path
+FindPartitionByPath("/mnt/vendor/nvdata")  ->  looks for "/mnt"  ->  nullptr
+```
+
+So `ProcessFstab()` created the partition from `recovery.fstab`, then
+`AddRemainingTwrpFlags()` could not find it and added the same mount point a
+second time from `twrp.flags`, while `MountByPath()` (used by the Mount page
+toggle in `gui2/backend/twrp_mount_backend.cpp`) resolved `/mnt` and reported
+`unable_find_part_path`.
+
+`tools/patches/0005-twrp-resolve-nested-mount-points.patch` adds
+`TWPartitionManager::ResolvePartitionPath()`, which looks the exact mount point
+up first and only falls back to `GetRootPath()`. All partition lookups
+(`FindPartitionByPath`, `MountByPath`, `UnmountByPath`, `WipeByPath`,
+`RepairByPath`, `ResizeByPath`, `RemovePartitionByPath`) use it, so nested mount
+points work and no duplicate entries are created.
 
 ## Repository layout
 
@@ -583,6 +684,7 @@ recovery/root/init.recovery.trustonic.rc stock TEE / KeyMint / Gatekeeper servic
 build/tasks/recovery_ramdisk_files.mk  repack prebuilt/ramdisk into the PLATFORM fragment
 recovery/root/system/etc/vintf/manifest/  recovery VINTF fragments for the AIDL HALs
 recovery/root/system/etc/mcdaemon.sh     TEE daemon wrapper (waits for /vendor, retries, logs)
+recovery/root/vendor/firmware/      aw8697 haptic RAM firmware taken from odm
 prebuilt/                          kernel, dtb, ramdisk files (generated)
 tools/extract-prebuilts.*          stock image extraction helpers
 tools/patches/*.patch              TWRP source patches applied by build.sh / CI
