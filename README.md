@@ -699,9 +699,33 @@ Needs testing / extra work:
   on hardware. Because TWRP unmounts `/vendor` after startup, a KeyMint crash
   later in the session cannot be recovered (init cannot exec the binary), so the
   daemons are expected to stay resident.
+* **FBE decryption on the V17 firmware**: after the system update to Android 17
+  the Trustonic store no longer mounts in recovery, so the KeyMint HAL never
+  comes up and `/data` stays encrypted. `mcDriverDaemon` gets as far as
+  `TAFileServer` `Mounting partition 1...`, after which the secure world sends no
+  further notification (`wait_mcp_notification: no answer after 10s …`) while the
+  daemon's main thread is blocked in `mcOpenSession` for the first `-r` secure
+  driver under `Load secure drivers`. The same kernel, kernel modules, TEE
+  firmware and store work when Android boots, so the difference is in the
+  recovery environment; `rpmb-mtk.ko` contention and file-system problems have
+  been ruled out. See the debug switches below.
 * Fastbootd (the TWRP mock boot control HAL is used; slot switching depends
   on the vendor `IBootControl` service).
 * WiFi is not enabled (no firmware setup is included).
+
+`recovery/root/system/etc/mcdaemon.sh` reads three optional files from
+`/mnt/vendor/persist` so the TEE daemon can be varied without rebuilding the
+image: `.mcd_skip` (one substring per line, drops matching `-r` entries),
+`.mcd_args` (complete argument list override) and `.mcd_wait` (the daemon is not
+started until the file is deleted). They are absent in normal use.
+
+The recovery ramdisk ships its own `lib/modules/modules.load.recovery` without
+`rpmb-mtk.ko` and `mtk-mmc.ko`: the former's kthread opens a Trustonic session
+every 512 ms from 1.2 s on, while `mcDriverDaemon` cannot start before `/vendor`
+is mounted at ~14 s, and `mtk-mmc.ko` is the only module that depends on it
+(it never binds on this UFS-only device, and init's `Modprobe` would pull
+`rpmb-mtk.ko` back in through `modules.dep`). `build/tasks/recovery_ramdisk_files.mk`
+fails the build when a new stock image changes that list.
 
 ### Haptics: `aw8697` needs its RAM firmware from the ramdisk
 

@@ -47,6 +47,32 @@ ifeq ($(wildcard $(PLC110_PLATFORM_DIR)/first_stage_ramdisk/fstab.mt6991),)
 $(error Missing $(PLC110_PLATFORM_DIR)/first_stage_ramdisk/fstab.mt6991; normal boot needs it, regenerate the prebuilts with tools/extract-prebuilts.sh)
 endif
 
+# The recovery ramdisk ships its own module list so rpmb-mtk.ko stays out of
+# recovery.  Its kthread opens a Trustonic session every 512 ms from 1.2 s on,
+# while mcDriverDaemon only starts once TWRP mounted /vendor at ~14 s, which
+# wedges the MCP queue and leaves the TAFileServer store mount hanging
+# ("Mounting partition 1..." then wait_mcp_notification timeouts).
+# mtk-mmc.ko is the only module that depends on it, and it is the SD/eMMC host
+# driver that never binds on this UFS-only device, so it goes too: init's
+# Modprobe resolves modules.dep and would otherwise pull rpmb-mtk.ko back in.
+# Fail loudly when a new stock image changes the list, so the override cannot
+# silently drop freshly added modules.
+PLC110_STOCK_MODULES := $(PLC110_PLATFORM_DIR)/lib/modules/modules.load.recovery
+PLC110_RECOVERY_MODULES := $(TARGET_DEVICE_DIR)/recovery/root/lib/modules/modules.load.recovery
+PLC110_REMOVED_MODULES := mtk-mmc.ko rpmb-mtk.ko
+
+ifeq ($(wildcard $(PLC110_RECOVERY_MODULES)),)
+$(error Missing $(PLC110_RECOVERY_MODULES); it is the recovery module list with $(PLC110_REMOVED_MODULES) filtered out)
+endif
+ifeq ($(wildcard $(PLC110_STOCK_MODULES)),)
+$(error Missing $(PLC110_STOCK_MODULES); regenerate the prebuilts with tools/extract-prebuilts.sh)
+endif
+PLC110_MODULE_LIST_DIFF := $(shell diff $(PLC110_STOCK_MODULES) $(PLC110_RECOVERY_MODULES) | grep '^<' | sed 's/^< *//' | sort | tr '\n' ' ')
+PLC110_MODULE_LIST_DIFF := $(strip $(PLC110_MODULE_LIST_DIFF))
+ifneq ($(PLC110_MODULE_LIST_DIFF),$(PLC110_REMOVED_MODULES))
+$(error $(PLC110_RECOVERY_MODULES) is out of date; only "$(PLC110_REMOVED_MODULES)" may be removed from $(PLC110_STOCK_MODULES), got "$(PLC110_MODULE_LIST_DIFF)")
+endif
+
 # The PLATFORM (0x1) fragment: cpio packed with the LZ4 legacy frame
 # (magic 02 21 4c 18) that mkbootfs + lz4 -l produce for the other fragments.
 PLC110_PLATFORM_FRAGMENT := $(TARGET_RECOVERY_OUT)/plc110_platform_ramdisk.lz4
