@@ -27,12 +27,13 @@
 # what the other vendor daemons of this device run in.
 #
 # `interface aidl` is what lets servicemanager start the service on demand: a
-# client that asks for a *declared* but unregistered instance makes
+# client that waits for a *declared* but unregistered instance makes
 # servicemanager send `ctl.interface_start aidl/android.hardware.boot.IBootControl/default`
 # to init, which used to fail with "Could not find 'aidl/...' for
-# ctl.interface_start" because the service never advertised the interface.  With
-# the line in place the HAL is brought up whenever /vendor is available, e.g.
-# when fastbootd starts after TWRP already mounted it.
+# ctl.interface_start" because the service never advertised the interface.  Note
+# that only the blocking lookups (waitForService/getService) trigger that; the
+# non-blocking checkService used by the patched BootControlClient does not, so
+# fastbootd still works without /vendor.
 
 service vendor.boot-default /vendor/bin/hw/android.hardware.boot-service.mtk
     class early_hal
