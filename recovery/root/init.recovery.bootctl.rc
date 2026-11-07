@@ -1,0 +1,37 @@
+# Stock MediaTek boot control HAL (AIDL android.hardware.boot.IBootControl).
+#
+# `adb sideload` of an A/B OTA package runs update_engine_sideload, which asks
+# for IBootControl before reading the payload.  Recovery has no boot control
+# service of its own (TWRP only ships a mock one for fastbootd) and the HIDL
+# fallback cannot work here because hwservicemanager is not running in
+# recovery:
+#
+#   I BootControlClient.cpp(419)] AIDL IBootControl not available, falling back to HIDL.
+#   W HidlServiceManagement: hwservicemanager is not supported on the device.
+#   E boot_control_android.cc(60)] Error getting bootctrl module.
+#   E sideload_main.cc(147)] Error initializing the BootControlInterface.
+#
+# update_engine_sideload then exits with "Updater 过程结束，错误: 1" before a
+# single block is transferred, so the host only reports "Total xfer: 0.00x".
+#
+# The vendor HAL is used instead of AOSP's android.hardware.boot-service
+# .default_recovery because that one looks for a legacy bootctrl.<name> HAL
+# module in /vendor/lib64/hw, which this device does not ship; MTK implements
+# boot control as a binder service that reads the slot metadata from /misc.
+# It is declared in recovery/root/system/etc/vintf/manifest/
+# android.hardware.boot-service.mtk.xml, without which servicemanager refuses
+# the registration.
+#
+# The binary lives on /vendor, so it can only start once TWRP mounted it and
+# set fstab.additional=1.  The recovery domain is permissive in TWRP and is
+# what the other vendor daemons of this device run in.
+
+service vendor.boot-default /vendor/bin/hw/android.hardware.boot-service.mtk
+    class early_hal
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+on property:fstab.additional=1
+    start vendor.boot-default

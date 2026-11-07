@@ -241,6 +241,7 @@ Working (expected, based on the stock ramdisk contents and flags):
   partitions
 * Mounting `nvdata`, `nvcfg`, `protect_f` and `protect_s`
 * Flashing images and zips, backup/restore of the boot images
+* `adb sideload` of zips and of `payload.bin` A/B OTA packages
 * Vibration (haptics) through the `aw8697` sysfs LED
 
 ### MTK display: page-flip events must stay disabled
@@ -518,6 +519,73 @@ KeyMint TA instance:
 19:56:16.620 F ...: Check failed: status == STATUS_OK                       <- SIGABRT
 ```
 
+### `adb sideload` of an A/B OTA: update_engine needs the boot control HAL
+
+Sideloading a `payload.bin` package (the OPLUS full OTA the stock recovery
+accepts) stopped right after the USB handshake:
+
+```
+$ adb sideload 9f6d0489097f4b3eba4f3504557df743.zip
+serving: '9f6d0489097f4b3eba4f3504557df743.zip'  (~0%)
+Total xfer: 0.00x
+```
+
+Nothing is transferred because the device side never asks for a single block.
+`really_install_package()` detects `payload_properties.txt` (TWRP prints
+`I:AB zip`), runs `/system/bin/update_engine_sideload`, and that aborts while
+resolving the slots:
+
+```
+I: update_engine_sideload: [INFO:sideload_main.cc(195)] Update Engine Sideloading starting
+I: update_engine_sideload: [INFO:BootControlClient.cpp(419)] AIDL IBootControl not available, falling back to HIDL.
+W HidlServiceManagement: [WARN:ServiceManagement.cpp(365)] hwservicemanager is not supported on the device.
+I: HidlServiceManagement: [INFO:ServiceManagement.cpp(227)] Trying to get transport of
+   android.hardware.boot@1.0::IBootControl/default without hwservicemanager
+E: update_engine_sideload: [ERROR:BootControlClient.cpp(426)] Error getting bootctrl v1.0 module.
+E: update_engine_sideload: [ERROR:boot_control_android.cc(60)] Error getting bootctrl module.
+E: update_engine_sideload: [ERROR:sideload_main.cc(147)] Error initializing the BootControlInterface.
+Updater 过程结束，错误: 1
+```
+
+Recovery ships no AIDL `android.hardware.boot.IBootControl` service (TWRP's
+`bootctl` mock is only wired into fastbootd) and the HIDL fallback can never
+work, because `hwservicemanager` is not running in recovery. AOSP's own
+`android.hardware.boot-service.default_recovery` does not help either: it
+delegates to a legacy `bootctrl.<name>` module in `/vendor/lib64/hw`, which this
+device does not have — MTK implements boot control as the binder service
+`/vendor/bin/hw/android.hardware.boot-service.mtk`, declared in
+`/vendor/etc/vintf/manifest/android.hardware.boot-service.mtk.xml`.
+
+That service can run in TWRP, but servicemanager rejects the registration for
+the same VINTF reason as the Trustonic HALs above:
+
+```
+I servicemanager: Caller(pid=1978,uid=0,sid=u:r:su:s0) Could not find
+  android.hardware.boot.IBootControl/default in the VINTF manifest.
+F android.hardware.boot-service.mtk: Check failed: status == STATUS_OK (status=-3)
+  Failed to add service android.hardware.boot.IBootControl/default -3
+```
+
+The fix is the same pattern:
+
+* [`recovery/root/system/etc/vintf/manifest/android.hardware.boot-service.mtk.xml`](./recovery/root/system/etc/vintf/manifest/android.hardware.boot-service.mtk.xml)
+  declares `IBootControl/default` in the recovery manifest;
+* [`recovery/root/init.recovery.bootctl.rc`](./recovery/root/init.recovery.bootctl.rc)
+  starts the vendor HAL once TWRP has mounted `/vendor` (`fstab.additional=1`),
+  in the permissive `recovery` domain like the other vendor daemons.
+
+With both in place the same probe now reports
+
+```
+I: update_engine_sideload: [INFO:BootControlClient.cpp(416)] Using AIDL version of IBootControl
+I: update_engine_sideload: [INFO:boot_control_android.cc(64)] Loaded boot control hal.
+I servicemanager: Caller(...) Found android.hardware.boot.IBootControl/default in recovery VINTF manifest.
+```
+
+and `update_engine_sideload` moves on to read the payload through the FUSE
+mount of `/sideload/package.zip`. As a side effect `fastbootd` can now use the
+real `IBootControl` instead of only the TWRP mock when switching slots.
+
 ### Reboot always returning to recovery: the `/misc` boot command
 
 MTK's LK reads the Android bootloader control block (BCB) from `/misc` on every
@@ -684,6 +752,7 @@ recovery/root/init.recovery.trustonic.rc stock TEE / KeyMint / Gatekeeper servic
 build/tasks/recovery_ramdisk_files.mk  repack prebuilt/ramdisk into the PLATFORM fragment
 recovery/root/system/etc/vintf/manifest/  recovery VINTF fragments for the AIDL HALs
 recovery/root/system/etc/mcdaemon.sh     TEE daemon wrapper (waits for /vendor, retries, logs)
+recovery/root/init.recovery.bootctl.rc   vendor boot control HAL (needed by update_engine_sideload)
 recovery/root/vendor/firmware/      aw8697 haptic RAM firmware taken from odm
 prebuilt/                          kernel, dtb, ramdisk files (generated)
 tools/extract-prebuilts.*          stock image extraction helpers

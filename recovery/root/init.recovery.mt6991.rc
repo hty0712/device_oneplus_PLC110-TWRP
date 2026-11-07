@@ -1,6 +1,7 @@
 # Device-specific recovery init for OnePlus Ace 5 Ultra (MT6991)
 
 import /init.recovery.trustonic.rc
+import /init.recovery.bootctl.rc
 
 on early-init
     # The device USB rc below builds the gadget itself and flips this to 1.
