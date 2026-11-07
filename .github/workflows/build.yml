@@ -32,7 +32,7 @@ on:
         required: true
         default: 'vendorbootimage'
       STOCK_URL:
-        description: 'Stock image mirror (boot_b.img / vendor_boot_b.img)'
+        description: 'Stock image mirror (boot.img / vendor_boot.img)'
         required: true
         default: 'https://file.hty1234.eu.org'
 
