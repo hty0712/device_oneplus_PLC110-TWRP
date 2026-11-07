@@ -133,7 +133,8 @@ setup_workspace() {
 # asking every builder to edit bootable/recovery by hand.
 apply_recovery_patches() {
     local patches_dir="${TWRP_DIR}/${DEVICE_PATH}/tools/patches"
-    local projects=("${TWRP_DIR}/bootable/recovery" "${TWRP_DIR}/hardware/interfaces")
+    local projects=("${TWRP_DIR}/bootable/recovery" "${TWRP_DIR}/hardware/interfaces" \
+                    "${TWRP_DIR}/system/core")
 
     [ -d "${patches_dir}" ] || return 0
 
@@ -157,7 +158,7 @@ apply_recovery_patches() {
             fi
         done
         if [ "${applied}" -eq 0 ]; then
-            log_error "Could not apply $(basename "${patch}") to bootable/recovery or hardware/interfaces"
+            log_error "Could not apply $(basename "${patch}") to bootable/recovery, hardware/interfaces or system/core"
             exit 1
         fi
     done

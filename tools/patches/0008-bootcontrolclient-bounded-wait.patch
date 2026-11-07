@@ -1,27 +1,36 @@
-Do not block forever on a declared but unregistered IBootControl.
+From: PLC110 TWRP device tree
+Subject: [PATCH] Do not block forever on a declared but unregistered IBootControl
 
 Recovery ships a VINTF fragment for android.hardware.boot so that
 update_engine_sideload and fastbootd can use the vendor HAL, but the HAL
 binary lives on /vendor.  In fastbootd mode TWRP does not mount /vendor, so
-the declared instance is never registered and
-AServiceManager_waitForService() - which only returns once an instance shows
-up - blocked inside the FastbootDevice constructor, before the USB transport
-was created:
+the declared instance is never registered and the FastbootDevice constructor
+blocked before it created the USB transport - which made the host see no
+device at all:
 
   I:进入 Fastbootd 模式
-  I:servicemanager: Caller(pid=980,...) Since 'android.hardware.boot.IBootControl/default'
+  I servicemanager: Caller(pid=980,...) Since 'android.hardware.boot.IBootControl/default'
      could not be found trying to start it as a lazy AIDL service.
-  E:init: Control message: Could not find 'aidl/android.hardware.boot.IBootControl/default'
+  E init: Control message: Could not find 'aidl/android.hardware.boot.IBootControl/default'
      for ctl.interface_start from pid: 434
-  (nothing further: no gadget bind, host shows no device)
+  I ServiceManagerCppClient: Waiting for service 'android.hardware.boot.IBootControl/default'
+     on '/dev/binder'...          <- and it stays here
+  I init: Service 'fastbootd' (pid 980) received signal 9
 
-Poll for the instance for at most five seconds and continue without it.  All
-consumers handle a null client: fastbootd reports an empty slot suffix and
-keeps serving the partitions it can reach, and update_engine_sideload only
-runs in normal recovery mode where the HAL is started by the device tree.
+AServiceManager_waitForService() never returns while a declared instance is
+missing, and AServiceManager_getService() is no better: it is documented as
+"this polls 5s" and calls the same blocking getService() underneath, so
+polling it turned the hang into 50 x 5s.
+
+Poll AServiceManager_checkService() - the only non-blocking lookup - for at
+most five seconds and continue without the HAL.  Every consumer handles a null
+client: fastbootd reports an empty slot suffix and keeps serving the partitions
+it can reach, and update_engine_sideload only runs in normal recovery mode
+where the device tree starts the HAL before it is needed.
 
 diff --git a/boot/aidl/client/BootControlClient.cpp b/boot/aidl/client/BootControlClient.cpp
-index 7aab5b4..73d1a01 100644
+diff --git a/boot/aidl/client/BootControlClient.cpp b/boot/aidl/client/BootControlClient.cpp
+index 7aab5b4..f702800 100644
 --- a/boot/aidl/client/BootControlClient.cpp
 +++ b/boot/aidl/client/BootControlClient.cpp
 @@ -19,6 +19,7 @@
@@ -32,7 +41,7 @@ index 7aab5b4..73d1a01 100644
  #include <android/binder_manager.h>
  #include <android/hardware/boot/1.0/IBootControl.h>
  #include <android/hardware/boot/1.1/IBootControl.h>
-@@ -406,15 +407,32 @@ std::unique_ptr<BootControlClient> BootControlClient::WaitForService() {
+@@ -406,15 +407,34 @@ std::unique_ptr<BootControlClient> BootControlClient::WaitForService() {
      const auto instance_name =
              std::string(::aidl::android::hardware::boot::IBootControl::descriptor) + "/default";
      if (AServiceManager_isDeclared(instance_name.c_str())) {
@@ -46,15 +55,17 @@ index 7aab5b4..73d1a01 100644
 -        LOG(INFO) << "Using AIDL version of IBootControl";
 -        return std::make_unique<BootControlClientAidl>(module);
 +        // Recovery declares the HAL from its own VINTF fragment while the vendor
-+        // implementation lives on /vendor.  fastbootd mode never mounts /vendor, so
-+        // the instance stays unregistered forever and waitForService() - which only
-+        // returns once *some* instance is served - blocked before fastbootd ever
-+        // configured USB, leaving the host with no device at all.  Poll for a moment
-+        // and carry on without the HAL instead: every caller copes with a null
-+        // client (fastbootd then reports an empty slot suffix).
++        // implementation lives on /vendor.  fastbootd mode does not mount /vendor,
++        // so the instance can stay unregistered forever, and waitForService() -
++        // which only returns once *some* instance is served - blocked inside the
++        // FastbootDevice constructor, before the USB transport was created.
++        // Poll with the non-blocking checkService() for a moment and continue
++        // without the HAL instead; every caller copes with a null client
++        // (fastbootd then reports an empty slot suffix).  Note AServiceManager_-
++        // getService() is not an option: it is the blocking one, it polls for 5s.
 +        AIBinder* binder = nullptr;
 +        for (int attempt = 0; attempt < 50 && binder == nullptr; ++attempt) {
-+            binder = AServiceManager_getService(instance_name.c_str());
++            binder = AServiceManager_checkService(instance_name.c_str());
 +            if (binder == nullptr) usleep(100 * 1000);
 +        }
 +        if (binder == nullptr) {
@@ -65,7 +76,7 @@ index 7aab5b4..73d1a01 100644
 +                    ndk::SpAIBinder(binder));
 +            if (module == nullptr) {
 +                LOG(ERROR) << "AIDL " << instance_name
-+                           << " is declared but getService returned an unusable binder.";
++                           << " is declared but checkService returned a broken binder.";
 +                return nullptr;
 +            }
 +            LOG(INFO) << "Using AIDL version of IBootControl";

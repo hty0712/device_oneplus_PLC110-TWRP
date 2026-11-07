@@ -659,22 +659,34 @@ fastboot mode never mounts `/vendor`, so the declared-but-unregistered instance
 of the HAL from the section above blocks the process before it can bind the
 gadget. There is no pinning trick to fall back on here, but there does not need
 to be one: every client use in fastbootd (`GetCurrentSlot`, `SetActiveSlot`,
-`Flash`) is null-checked and degrades gracefully. `getvar current-slot` still
-answers because TWRP keeps `/vendor` mounted, so
-`vendor.boot-default` never went away.
+`Flash`) is null-checked and degrades gracefully — provided the slot is taken
+from somewhere else (see patch 0009 below).
 
 `tools/patches/0008-bootcontrolclient-bounded-wait.patch` bounds the wait: it
-polls `AServiceManager_getService()` for at most five seconds and then returns
-`nullptr`, turning a dead fastboot session into a short delay. Verified on
-hardware — `fastboot devices` lists the device, `getvar product` returns
-`PLC110` and `getvar current-slot` returns `a`, and the session stays up
-(checked for 90 s, with both a plain `setprop sys.usb.config fastboot` and the
-GUI's `none` + `fastboot` sequence).
+polls `AServiceManager_checkService()` — the only **non-blocking** lookup;
+`AServiceManager_getService()` looks convenient but is documented as "this polls
+5s" and calls the same blocking `getService()` underneath — for at most five
+seconds and then returns `nullptr`, turning a dead fastboot session into a short
+delay.
 
-Note that the boot control patches now live in two different projects:
-`build.sh` and the CI workflow apply `tools/patches/*.patch` to
-`bootable/recovery` **or** `hardware/interfaces`, and fail if a patch applies to
-neither.
+`tools/patches/0009-fastbootd-slot-without-boot-control-hal.patch` then puts the
+slot back: without the HAL `FastbootDevice::GetCurrentSlot()` returned `""`, so
+`getvar current-slot` was empty, `getvar slot-count` was `0` and
+`getvar has-slot:product` was `no` — which makes `fastboot flash product ...`
+fail with "Partition doesn't exist" because only `product_a`/`product_b` exist.
+It falls back to `ro.boot.slot_suffix` (what `GetSuffix()` would have returned)
+and reports two slots when that property is set.
+
+Verified on hardware: `fastboot devices` lists the device, `getvar product`
+returns `PLC110`, `getvar current-slot` returns `a`, `getvar slot-count` returns
+`2`, and the session survives 90 s. The slot fallback is only a reporting fix —
+`fastboot --set-active` still needs the real HAL, because switching slots means
+rewriting the BCB in `/misc`.
+
+Note that the patches now live in three different projects: `build.sh` and the CI
+workflow apply `tools/patches/*.patch` to `bootable/recovery`,
+`hardware/interfaces` **or** `system/core`, and fail if a patch applies to none
+of them.
 
 ### Reboot always returning to recovery: the `/misc` boot command
 

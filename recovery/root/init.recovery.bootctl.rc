@@ -25,6 +25,14 @@
 # The binary lives on /vendor, so it can only start once TWRP mounted it and
 # set fstab.additional=1.  The recovery domain is permissive in TWRP and is
 # what the other vendor daemons of this device run in.
+#
+# `interface aidl` is what lets servicemanager start the service on demand: a
+# client that asks for a *declared* but unregistered instance makes
+# servicemanager send `ctl.interface_start aidl/android.hardware.boot.IBootControl/default`
+# to init, which used to fail with "Could not find 'aidl/...' for
+# ctl.interface_start" because the service never advertised the interface.  With
+# the line in place the HAL is brought up whenever /vendor is available, e.g.
+# when fastbootd starts after TWRP already mounted it.
 
 service vendor.boot-default /vendor/bin/hw/android.hardware.boot-service.mtk
     class early_hal
@@ -32,6 +40,7 @@ service vendor.boot-default /vendor/bin/hw/android.hardware.boot-service.mtk
     group root
     disabled
     seclabel u:r:recovery:s0
+    interface aidl android.hardware.boot.IBootControl/default
 
 on property:fstab.additional=1
     start vendor.boot-default

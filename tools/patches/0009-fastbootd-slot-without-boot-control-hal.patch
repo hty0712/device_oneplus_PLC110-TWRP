@@ -1,0 +1,49 @@
+Do not lose the current slot when fastbootd runs without the boot control HAL.
+
+The vendor android.hardware.boot HAL lives on /vendor and TWRP does not mount it
+in fastboot mode, so FastbootDevice::GetCurrentSlot() returned an empty string.
+Every slot aware command then degrades:
+
+  fastboot getvar current-slot      -> ""            (client cannot resolve)
+  fastboot getvar slot-count        -> 0
+  fastboot getvar has-slot:product  -> no
+  fastboot flash product product.img-> "Partition doesn't exist" (only product_a)
+
+The bootloader already told recovery which slot it booted from, so fall back to
+ro.boot.slot_suffix (_a/_b, what GetSuffix() would have returned) and report two
+slots when that property is set.
+
+diff --git a/fastboot/device/fastboot_device.cpp b/fastboot/device/fastboot_device.cpp
+diff --git a/fastboot/device/fastboot_device.cpp b/fastboot/device/fastboot_device.cpp
+index 0dc4e97..6357e4a 100644
+--- a/fastboot/device/fastboot_device.cpp
++++ b/fastboot/device/fastboot_device.cpp
+@@ -144,7 +144,12 @@ std::string FastbootDevice::GetCurrentSlot() {
+     }
+     // Non-A/B devices must not have boot control HALs.
+     if (!boot_control_hal_) {
+-        return "";
++        // Recovery can run fastbootd without the vendor boot control HAL: the
++        // binary lives on /vendor, which TWRP does not mount in fastboot mode.
++        // The bootloader still told us which slot we booted from, and reporting
++        // no slot at all breaks every slot aware command - `fastboot flash
++        // system` cannot resolve system_a and getvar has-slot answers no.
++        return android::base::GetProperty("ro.boot.slot_suffix", "");
+     }
+     std::string suffix = boot_control_hal_->GetSuffix(boot_control_hal_->GetCurrentSlot());
+     return suffix;
+diff --git a/fastboot/device/variables.cpp b/fastboot/device/variables.cpp
+index 078bb13..f933202 100644
+--- a/fastboot/device/variables.cpp
++++ b/fastboot/device/variables.cpp
+@@ -222,7 +222,9 @@ bool GetSlotCount(FastbootDevice* device, const std::vector<std::string>& /* arg
+                   std::string* message) {
+     auto boot_control_hal = device->boot_control_hal();
+     if (!boot_control_hal) {
+-        *message = "0";
++        // Same fallback as FastbootDevice::GetCurrentSlot(): without the vendor
++        // HAL a device that booted from _a/_b still has two slots.
++        *message = android::base::GetProperty("ro.boot.slot_suffix", "").empty() ? "0" : "2";
+     } else {
+         *message = std::to_string(boot_control_hal->GetNumSlots());
+     }

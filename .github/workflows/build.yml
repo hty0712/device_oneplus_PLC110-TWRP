@@ -122,9 +122,10 @@ jobs:
           echo "No patches found in ${patches_dir}"
           exit 0
         fi
-        # Patches may target either tree: bootable/recovery for the TWRP
-        # changes and hardware/interfaces for the boot control HAL client.
-        projects=(bootable/recovery hardware/interfaces)
+        # Patches may target any of the trees the device touches: bootable/recovery
+        # for the TWRP changes, hardware/interfaces for the boot control HAL client
+        # and system/core for fastbootd itself.
+        projects=(bootable/recovery hardware/interfaces system/core)
         for patch in "${patches[@]}"; do
           echo "Applying $(basename "${patch}")"
           applied=0
