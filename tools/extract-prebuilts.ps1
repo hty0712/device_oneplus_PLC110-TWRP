@@ -29,7 +29,7 @@ param(
     [string]$VendorBootImg,
     [switch]$FromDevice,
     [switch]$Download,
-    [string]$StockUrl = 'https://file.hty1234.eu.org/'
+    [string]$StockUrl = 'https://file.hty1234.eu.org'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -80,10 +80,10 @@ function Download-Images {
     Write-Host "[INFO] Downloading stock images from $StockUrl"
     $boot = Join-Path $tmpDir 'boot.img'
     $vendor = Join-Path $tmpDir 'vendor_boot.img'
-    & curl.exe -fL "$StockUrl/boot_b.img" -o $boot
-    if ($LASTEXITCODE -ne 0) { throw 'Failed to download boot_b.img' }
-    & curl.exe -fL "$StockUrl/vendor_boot_b.img" -o $vendor
-    if ($LASTEXITCODE -ne 0) { throw 'Failed to download vendor_boot_b.img' }
+    & curl.exe -fL "$StockUrl/boot.img" -o $boot
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to download boot.img' }
+    & curl.exe -fL "$StockUrl/vendor_boot.img" -o $vendor
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to download vendor_boot.img' }
     return @($boot, $vendor)
 }
 

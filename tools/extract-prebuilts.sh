@@ -81,8 +81,8 @@ pull_from_device() {
 
 download_images() {
     echo "[INFO] Downloading stock images from ${STOCK_URL}"
-    curl -fL "${STOCK_URL}/boot_b.img" -o "${TMP_DIR}/boot.img"
-    curl -fL "${STOCK_URL}/vendor_boot_b.img" -o "${TMP_DIR}/vendor_boot.img"
+    curl -fL "${STOCK_URL}/boot.img" -o "${TMP_DIR}/boot.img"
+    curl -fL "${STOCK_URL}/vendor_boot.img" -o "${TMP_DIR}/vendor_boot.img"
     BOOT_IMG="${TMP_DIR}/boot.img"
     VENDOR_BOOT_IMG="${TMP_DIR}/vendor_boot.img"
 }
