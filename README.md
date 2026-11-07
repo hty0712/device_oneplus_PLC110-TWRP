@@ -586,6 +586,39 @@ and `update_engine_sideload` moves on to read the payload through the FUSE
 mount of `/sideload/package.zip`. As a side effect `fastbootd` can now use the
 real `IBootControl` instead of only the TWRP mock when switching slots.
 
+**Ordering trap:** declaring the instance also changes TWRP's own startup, because
+`TWPartitionManager::GetSuperPartition()` asks the HAL for the current slot at the
+very start of `ProcessFstab()`:
+
+```cpp
+// hardware/interfaces/boot/aidl/client/BootControlClient.cpp
+if (AServiceManager_isDeclared(instance_name.c_str())) {
+    auto module = IBootControl::fromBinder(
+            ndk::SpAIBinder(AServiceManager_waitForService(instance_name.c_str())));
+```
+
+`AServiceManager_waitForService()` never returns while a *declared* instance is
+missing, and the HAL cannot start before `/vendor` is mounted — which TWRP only
+does later in that same function (`fstab.additional=1` is set after it copied
+`/vendor/etc/fstab.mt6991`). The result is a deadlock that looks like a hang on
+the TWRP splash:
+
+```
+gui2: 1272x2800, short side 71 mm, scale 1.06
+=> Linking mtab
+=> Processing /etc/recovery.fstab      <- last line, nothing after it
+```
+
+with `adb` still working, `/dev/block/mapper` empty and `fstab.additional` unset
+(so `init.svc.vendor.boot-default` never starts either).
+
+`tools/patches/0006-twrp-do-not-block-on-boot-control.patch` therefore lets the
+device tree pin the name with `ro.twrp.super_partition` (set to `super` in
+`init.recovery.mt6991.rc`); on this platform super is a plain, non-suffixed
+partition, so the HAL is not needed to name it. The other `WaitForService()`
+call sites (`SetActiveSlot`, `Flash_Current_Twrp`, `update_verifier`) run from
+user actions long after `/vendor` is up, so they still use the real HAL.
+
 ### Reboot always returning to recovery: the `/misc` boot command
 
 MTK's LK reads the Android bootloader control block (BCB) from `/misc` on every

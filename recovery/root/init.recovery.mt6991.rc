@@ -17,6 +17,14 @@ on early-init
     # otherwise unmount it and leave every retry failing with
     # "/vendor/bin/mcDriverDaemon: inaccessible or not found".
     setprop ro.twrp.keep_vendor_mounted 1
+    # Pin the super partition name. TWRP asks the boot control HAL for it
+    # (fs_mgr_get_super_partition_name(slot)) at the start of ProcessFstab, and
+    # BootControlClient::WaitForService() blocks until a *declared* instance
+    # registers. The vendor HAL lives on /vendor, which TWRP mounts later in
+    # that very function, so the query deadlocks the startup right after
+    # "=> Processing /etc/recovery.fstab". The partition is plain "super" here
+    # (no slot suffix), so TWRP can skip the HAL entirely.
+    setprop ro.twrp.super_partition super
     # The MTK DDP reports a page flip carrying a flip event but no valid vblank
     # reference to the vendor AEE handler, which resets the device ~12 s later.
     # Blocking commits (no event) keep the display working.

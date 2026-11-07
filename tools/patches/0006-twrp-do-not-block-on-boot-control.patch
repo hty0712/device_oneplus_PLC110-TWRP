@@ -1,0 +1,49 @@
+Do not block on the boot control HAL to name the super partition.
+
+GetSuperPartition() asks android.hardware.boot.IBootControl for the current
+slot so it can build fs_mgr_get_super_partition_name(slot).
+BootControlClient::WaitForService() first checks AServiceManager_isDeclared()
+and then calls AServiceManager_waitForService(), which never returns while a
+declared instance is missing.
+
+A device tree that ships a recovery VINTF fragment for
+android.hardware.boot (needed by update_engine_sideload) therefore declares
+the instance from early boot, while the vendor HAL binary itself lives on
+/vendor - a logical partition TWRP only maps and mounts later in
+ProcessFstab(), i.e. after this call.  The result is a deadlock: recovery
+stops at
+
+  gui2: 1272x2800, ... scale 1.06
+  => Linking mtab
+  => Processing /etc/recovery.fstab
+
+with the main thread parked in binder waitForService, no /dev/block/mapper
+devices and fstab.additional still unset (so the HAL never starts either).
+
+Let the device tree pin the name with ro.twrp.super_partition and skip the
+HAL lookup entirely.  The remaining WaitForService() call sites
+(SetActiveSlot, Flash_Current_Twrp, update_verifier) run from user actions
+long after /vendor is available, so they keep using the real HAL.
+
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 26c9e2d..2ca44f1 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -3484,6 +3484,17 @@ bool TWPartitionManager::PrepareAllSuperVolumes() {
+ }
+ 
+ std::string TWPartitionManager::GetSuperPartition() {
++  // A device tree may pin the name: on this platform super is a plain partition,
++  // while the boot control HAL that would report the slot lives on /vendor, which
++  // TWRP only mounts later in ProcessFstab().  A recovery VINTF fragment that
++  // declares android.hardware.boot makes BootControlClient::WaitForService()
++  // block until the instance registers, so asking for it here deadlocks the
++  // startup ("=> Processing /etc/recovery.fstab" being the last log line).
++  const std::string pinned_super = android::base::GetProperty("ro.twrp.super_partition", "");
++  if (!pinned_super.empty()) {
++    LOGINFO("Using pinned super partition '%s'\n", pinned_super.c_str());
++    return GetByNamePath(pinned_super);
++  }
+   std::string super_device = "super";
+ #ifdef AB_OTA_UPDATER
+   if (const auto module = BootControlClient::WaitForService()) {
