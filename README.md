@@ -263,8 +263,10 @@ and the phone reboots a few seconds later. Blocking commits never set
 
 * `tools/patches/0001-twrpminui-allow-disabling-page-flip-events.patch` adds the
   `twrp.drm.page_flip_events` property to `bootable/recovery/twrpminui`
-  (default `true`, so other devices keep flip events). `build.sh` and the CI
-  workflow apply it automatically.
+  (default `true`, so other devices keep flip events). It clears the
+  per-connector `page_flip` flag in `MinuiBackendDrm::Init()`, so `Present()`
+  takes the blocking commit path instead of arming a flip event. `build.sh`
+  and the CI workflow apply it automatically.
 * `recovery/root/init.recovery.mt6991.rc` sets `twrp.drm.page_flip_events 0`
   in `on early-init`.
 

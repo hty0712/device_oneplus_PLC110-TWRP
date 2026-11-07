@@ -14,7 +14,6 @@ ro.boot.slot_suffix (_a/_b, what GetSuffix() would have returned) and report two
 slots when that property is set.
 
 diff --git a/fastboot/device/fastboot_device.cpp b/fastboot/device/fastboot_device.cpp
-diff --git a/fastboot/device/fastboot_device.cpp b/fastboot/device/fastboot_device.cpp
 index 0dc4e97..6357e4a 100644
 --- a/fastboot/device/fastboot_device.cpp
 +++ b/fastboot/device/fastboot_device.cpp

@@ -29,7 +29,6 @@ it can reach, and update_engine_sideload only runs in normal recovery mode
 where the device tree starts the HAL before it is needed.
 
 diff --git a/boot/aidl/client/BootControlClient.cpp b/boot/aidl/client/BootControlClient.cpp
-diff --git a/boot/aidl/client/BootControlClient.cpp b/boot/aidl/client/BootControlClient.cpp
 index 7aab5b4..f702800 100644
 --- a/boot/aidl/client/BootControlClient.cpp
 +++ b/boot/aidl/client/BootControlClient.cpp
