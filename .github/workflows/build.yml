@@ -122,13 +122,23 @@ jobs:
           echo "No patches found in ${patches_dir}"
           exit 0
         fi
+        # Patches may target either tree: bootable/recovery for the TWRP
+        # changes and hardware/interfaces for the boot control HAL client.
+        projects=(bootable/recovery hardware/interfaces)
         for patch in "${patches[@]}"; do
           echo "Applying $(basename "${patch}")"
-          if ! git -C bootable/recovery apply --check "${patch}"; then
+          applied=0
+          for project in "${projects[@]}"; do
+            if git -C "${project}" apply --check "${patch}" >/dev/null 2>&1; then
+              git -C "${project}" apply --verbose "${patch}"
+              applied=1
+              break
+            fi
+          done
+          if [ "${applied}" -eq 0 ]; then
             echo "::error::$(basename "${patch}") does not apply to the synced sources"
             exit 1
           fi
-          git -C bootable/recovery apply --verbose "${patch}"
         done
       working-directory: workspace
 

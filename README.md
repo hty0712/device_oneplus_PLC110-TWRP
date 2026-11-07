@@ -405,6 +405,26 @@ starts them, and every one of them needs two workarounds.
    honour `ro.twrp.keep_vendor_mounted`, which `init.recovery.mt6991.rc` sets in
    `on early-init`.
 
+5. **Keeping `/vendor` mounted is not enough — TWRP also has to stop evicting
+   the daemon from it.** When a later `Unmount()` still fails with `EBUSY`
+   (after `ProcessResetProps()`/`GetPropertyFromPartition()` touched `/vendor`),
+   TWRP runs `TWFunc::KillForUseTargetProcess("/vendor")`, which `lsof`s the
+   mount point and `SIGKILL`s every pid holding a file below it:
+
+   ```
+   I:Killing pid 512 using '/vendor' before unmount
+   ```
+
+   `mcDriverDaemon` mmaps `libMcClient.so` from `/vendor`, so one such unmount
+   restarts the secure world mid-boot and leaves KeyMint with
+   `NO_FREE_INSTANCES` (rc 0x27) for the rest of the boot — the daemon is up,
+   the TA can no longer be opened.
+   `tools/patches/0007-twrp-keep-tee-daemons-on-vendor-unmount.patch` skips the
+   eviction for `/vendor` when `ro.twrp.keep_vendor_mounted` is set. Together
+   with starting the daemon without `-r` arguments (see the comment in
+   [`recovery/root/init.recovery.trustonic.rc`](./recovery/root/init.recovery.trustonic.rc))
+   this is what made decryption work again on the Android 17 firmware.
+
 ### TEE session exhaustion (`NO_FREE_INSTANCES`)
 
 Kinibi's secure world has a fixed session table (128 entries). Every
@@ -619,6 +639,43 @@ partition, so the HAL is not needed to name it. The other `WaitForService()`
 call sites (`SetActiveSlot`, `Flash_Current_Twrp`, `update_verifier`) run from
 user actions long after `/vendor` is up, so they still use the real HAL.
 
+### `fastbootd` shows no device: the boot control wait happens before USB exists
+
+Switching TWRP's Fastboot page on updated the gadget property but the host never
+saw anything — `fastboot devices` stayed empty and `adb` was back a few seconds
+later, i.e. `fastbootd` had already exited. logcat shows it never reached
+functionfs:
+
+```
+I init    : processing action (sys.usb.config=fastboot) /init.recovery.usb.rc
+I servicemanager: Caller(pid=980,uid=0,sid=u:r:fastbootd:s0) Could not find
+  'aidl/android.hardware.boot.IBootControl/default' for ctl.interface_start
+I init    : Service 'fastbootd' (pid 980) received signal 9
+```
+
+`FastbootDevice::FastbootDevice()` builds the `BootControlClient` — whose
+constructor calls `WaitForService()` — *before* it creates the USB transport, and
+fastboot mode never mounts `/vendor`, so the declared-but-unregistered instance
+of the HAL from the section above blocks the process before it can bind the
+gadget. There is no pinning trick to fall back on here, but there does not need
+to be one: every client use in fastbootd (`GetCurrentSlot`, `SetActiveSlot`,
+`Flash`) is null-checked and degrades gracefully. `getvar current-slot` still
+answers because TWRP keeps `/vendor` mounted, so
+`vendor.boot-default` never went away.
+
+`tools/patches/0008-bootcontrolclient-bounded-wait.patch` bounds the wait: it
+polls `AServiceManager_getService()` for at most five seconds and then returns
+`nullptr`, turning a dead fastboot session into a short delay. Verified on
+hardware — `fastboot devices` lists the device, `getvar product` returns
+`PLC110` and `getvar current-slot` returns `a`, and the session stays up
+(checked for 90 s, with both a plain `setprop sys.usb.config fastboot` and the
+GUI's `none` + `fastboot` sequence).
+
+Note that the boot control patches now live in two different projects:
+`build.sh` and the CI workflow apply `tools/patches/*.patch` to
+`bootable/recovery` **or** `hardware/interfaces`, and fail if a patch applies to
+neither.
+
 ### Reboot always returning to recovery: the `/misc` boot command
 
 MTK's LK reads the Android bootloader control block (BCB) from `/misc` on every
@@ -694,23 +751,23 @@ refines `/data` and `/metadata`, so the extra partition is inert for TWRP.
 
 Needs testing / extra work:
 
-* **FBE decryption**: the chain above works, but the full user-credential flow
-  (gatekeeper unlock → keystore2 unwrap → vold decrypt of `/data`) is untested
-  on hardware. Because TWRP unmounts `/vendor` after startup, a KeyMint crash
-  later in the session cannot be recovered (init cannot exec the binary), so the
+* **FBE decryption**: the chain above works, and the full user-credential flow
+  (gatekeeper unlock → keystore2 unwrap → vold decrypt of `/data`) is verified on
+  hardware. Because TWRP unmounts `/vendor` after startup, a KeyMint crash later
+  in the session cannot be recovered (init cannot exec the binary), so the
   daemons are expected to stay resident.
-* **FBE decryption on the V17 firmware**: after the system update to Android 17
-  the Trustonic store no longer mounts in recovery, so the KeyMint HAL never
-  comes up and `/data` stays encrypted. `mcDriverDaemon` gets as far as
-  `TAFileServer` `Mounting partition 1...`, after which the secure world sends no
-  further notification (`wait_mcp_notification: no answer after 10s …`) while the
-  daemon's main thread is blocked in `mcOpenSession` for the first `-r` secure
-  driver under `Load secure drivers`. The same kernel, kernel modules, TEE
-  firmware and store work when Android boots, so the difference is in the
-  recovery environment; `rpmb-mtk.ko` contention and file-system problems have
-  been ruled out. See the debug switches below.
-* Fastbootd (the TWRP mock boot control HAL is used; slot switching depends
-  on the vendor `IBootControl` service).
+* **FBE decryption on the V17 firmware**: fixed, by two changes that only make
+  sense together — starting `mcDriverDaemon` without `-r` arguments (see
+  [`recovery/root/init.recovery.trustonic.rc`](./recovery/root/init.recovery.trustonic.rc))
+  and stopping TWRP from `SIGKILL`ing it on a `/vendor` unmount
+  (`tools/patches/0007-twrp-keep-tee-daemons-on-vendor-unmount.patch`). Before
+  them the Trustonic store never mounted in recovery: `TAFileServer` stopped at
+  `Mounting partition 1...`, no further notification arrived
+  (`wait_mcp_notification: no answer after 10s …`), and the daemon's main thread
+  was blocked in `mcOpenSession` for the first `-r` secure driver under
+  `Load secure drivers` — which is also why the debug switches below exist.
+* **Fastbootd** works (patches 0006 and 0008), including `getvar current-slot`
+  while `/vendor` is still mounted.
 * WiFi is not enabled (no firmware setup is included).
 
 `recovery/root/system/etc/mcdaemon.sh` reads three optional files from

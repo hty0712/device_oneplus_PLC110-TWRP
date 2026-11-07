@@ -28,41 +28,15 @@
 # The daemon is started as root: as "user system" it exits with status 6 a
 # millisecond after exec without ever reaching its first log line, and its
 # stderr (captured to /tmp/mcd.log by the wrapper) is the only way to see why.
-service mobicore /system/bin/sh /system/etc/mcdaemon.sh --P1 /mnt/vendor/persist/mcRegistry \
-	-r /vendor/app/mcRegistry/06090000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/020f0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/05120000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/05120000000000000000000000000001.drbin \
-	-r /vendor/app/mcRegistry/05160000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/020b0000000000000000000000000000.drbin \
-	-r /odm/vendor/app/mcRegistry/05070000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/030b0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/03100000000000000000000000000000.drbin \
-	-r /odm/vendor/app/mcRegistry/030c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/031c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/032c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/033c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/034c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/035c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/036c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/037c0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/40188311faf343488db888ad39496f9a.drbin \
-	-r /vendor/app/mcRegistry/090b0000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/0f5eed3c3b5a47afacca69a84bf0efad.drbin \
-	-r /vendor/app/mcRegistry/07060000000000000000000000007169.drbin \
-	-r /vendor/app/mcRegistry/4be4f7dc1f2c11e5b5f7727283247c7f.drbin \
-	-r /vendor/app/mcRegistry/08070000000000000000000000008270.drbin \
-	-r /vendor/app/mcRegistry/07070000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/07407000000000000000000000000000.drbin \
-	-r /vendor/app/mcRegistry/9073f03a9618383bb1856eb3f990babd.drbin \
-	-r /vendor/app/mcRegistry/6b3f5fa0f8cf55a7be2582587d62d63a.drbin \
-	-r /vendor/app/mcRegistry/5020170115e016302017012521300000.drbin \
-	-r /vendor/app/mcRegistry/07210000000000000000000000000000.drbin \
-	-r /odm/vendor/app/mcRegistry/09070000000000000000000000000000.drbin \
-	-r /odm/vendor/app/mcRegistry/035c0000000000000000000000000000.drbin \
-	-r /odm/vendor/app/mcRegistry/033c0000000000000000000000000000.drbin \
-	-r /odm/vendor/app/mcRegistry/6b3f5fa0f8cf55a7be2582587d62d63a.drbin \
-	-r /odm/vendor/app/mcRegistry/031c0000000000000000000000000000.drbin
+#
+# No -r arguments: the daemon loads the listed secure drivers one after the
+# other right after "start FileServer", and loading the first one blocks the
+# single MCP channel while the TAFileServer is still mounting the store, which
+# deadlocks both ("Mounting partition 1..." then wait_mcp_notification
+# timeouts).  Without the list the store mounts, the daemon reaches "Daemon
+# running" and the KeyMint/Gatekeeper TAs are loaded on demand when their HALs
+# open a session, which is all TWRP needs.
+service mobicore /system/bin/sh /system/etc/mcdaemon.sh --P1 /mnt/vendor/persist/mcRegistry
     user root
     group root
     class core

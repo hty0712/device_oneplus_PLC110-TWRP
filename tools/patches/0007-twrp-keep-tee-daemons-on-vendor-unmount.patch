@@ -1,0 +1,44 @@
+Never kill the processes holding /vendor when it is kept mounted.
+
+ProcessResetProps() reads properties through GetPropertyFromPartition(),
+which mounts /vendor, reads build.prop and unmounts it again.  On devices
+that set ro.twrp.keep_vendor_mounted the unmount fails with EBUSY because
+the whole Trustonic TEE stack runs from /vendor, and Unmount() then calls
+KillForUseTargetProcess() to evict the holders:
+
+  I:Killing pid 512 using '/vendor' before unmount
+  I:Unable to unmount '/vendor'
+
+The killed process was mcDriverDaemon.  Losing it resets the secure world
+mid-startup, init restarts the KeyMint HAL against a dirty TEE and its
+trustlet open fails with NO_FREE_INSTANCES, so /data never gets decrypted
+("Unable to decrypt metadata encryption").  When the daemon is started
+late instead - after that window - KeyMint loads tlTeeKeymint_rpmb and
+serves TEE_ComputeSharedMac normally.
+
+Skip the eviction for /vendor when the mount is meant to stay.
+
+diff --git a/twrp_functions.cpp b/twrp_functions.cpp
+index 207691c..2155e10 100644
+--- a/twrp_functions.cpp
++++ b/twrp_functions.cpp
+@@ -210,6 +210,19 @@ void TWFunc::KillForUseTargetProcess(const std::string& target) {
+ 
+   std::string directory = target;
+   while (directory.size() > 1 && directory.back() == '/') directory.pop_back();
++
++  // Devices that keep /vendor mounted on purpose run the whole TEE stack
++  // (mcDriverDaemon, KeyMint, Gatekeeper) from there, so they always hold files
++  // under it.  Unmounting then fails with EBUSY and this helper would kill those
++  // daemons: the secure world resets, the KeyMint trustlet instance is leaked
++  // and FBE decryption becomes impossible.  The mount is not going away, so
++  // there is nothing to evict.
++  if (directory == "/vendor" &&
++      android::base::GetBoolProperty("ro.twrp.keep_vendor_mounted", false)) {
++    LOGINFO("Keeping processes using '/vendor' alive (ro.twrp.keep_vendor_mounted)\n");
++    return;
++  }
++
+   const std::string prefix = directory == "/" ? directory : directory + "/";
+ 
+   std::string output;

@@ -133,21 +133,31 @@ setup_workspace() {
 # asking every builder to edit bootable/recovery by hand.
 apply_recovery_patches() {
     local patches_dir="${TWRP_DIR}/${DEVICE_PATH}/tools/patches"
-    local project="${TWRP_DIR}/bootable/recovery"
+    local projects=("${TWRP_DIR}/bootable/recovery" "${TWRP_DIR}/hardware/interfaces")
 
     [ -d "${patches_dir}" ] || return 0
-    [ -d "${project}" ] || return 0
 
     log_step "Applying TWRP source patches..."
-    local patch
+    local patch project applied
     for patch in "${patches_dir}"/*.patch; do
         [ -e "${patch}" ] || continue
-        if git -C "${project}" apply --reverse --check "${patch}" >/dev/null 2>&1; then
-            log_info "$(basename "${patch}") already applied"
-        elif git -C "${project}" apply "${patch}"; then
-            log_info "Applied $(basename "${patch}")"
-        else
-            log_error "Could not apply $(basename "${patch}") to bootable/recovery"
+        applied=0
+        for project in "${projects[@]}"; do
+            [ -d "${project}" ] || continue
+            if git -C "${project}" apply --reverse --check "${patch}" >/dev/null 2>&1; then
+                log_info "$(basename "${patch}") already applied"
+                applied=1
+                break
+            fi
+            if git -C "${project}" apply --check "${patch}" >/dev/null 2>&1; then
+                git -C "${project}" apply "${patch}"
+                log_info "Applied $(basename "${patch}")"
+                applied=1
+                break
+            fi
+        done
+        if [ "${applied}" -eq 0 ]; then
+            log_error "Could not apply $(basename "${patch}") to bootable/recovery or hardware/interfaces"
             exit 1
         fi
     done
