@@ -270,6 +270,55 @@ and the phone reboots a few seconds later. Blocking commits never set
 * `recovery/root/init.recovery.mt6991.rc` sets `twrp.drm.page_flip_events 0`
   in `on early-init`.
 
+### MTK display: the rebased minui needs a non-CLO plane fallback
+
+Builds made after 2026-11-06 include upstream `twrpminui: rebase graphics and
+input on current minui` (TWRP-Test `f2c636ba86`), which rewrote `Initdisplay()`
+around the CLO plane model. The new code only accepts a plane as primary when
+it exposes the Qualcomm SDE `capabilities` property and its blob carries no
+`primary_smart_plane_id` marker:
+
+```cpp
+bool primary = false;
+if (load_properties(...)) {
+  for (uint32_t j = 0; j < candidate.props->count_props; ++j) {
+    if (!strcmp(candidate.props_info[j]->name, "capabilities"))
+      primary = is_primary_plane(drm_fd, candidate.props->prop_values[j]);
+  }
+}
+```
+
+`mediatek-drm` (`drivers/gpu/drm/mediatek/mtk_drm_plane.c` in the OnePlusOSS
+kernel) creates only the standard DRM plane properties, so no candidate is
+ever accepted: `selected` stays 0 while `number_of_lms` is 2 and
+`Initdisplay()` returns -1.
+
+`MinuiBackendDrm::Init()` therefore gives up before the takeover commit:
+
+```
+TWRP DRM: display 0 found 0/2 primary planes for CRTC index 0
+Failed to init display
+gui2: minui display initialization failed
+```
+
+`gui2_start()` returns `GUI2_EXIT_INITIALIZATION_FAILED`, `recovery` exits and
+init restarts it. adbd is started independently by init (`sys.usb.config=adb`),
+so the phone looks hung at the OnePlus logo but still shows an ADB interface —
+which is exactly what the first builds with the rebased minui did.
+
+`tools/patches/0010-twrpminui-plane-selection-without-clo-capabilities.patch`
+probes the plane property once. When it is missing it restores the pre-rebase
+selection: walk the plane list forward and use the first planes that can drive
+the connector's CRTC (`number_of_lms` stays 2, what the old backend used on
+this device). Qualcomm devices keep the reverse CLO order.
+
+Confirm which failure it is on the device:
+
+```bash
+adb shell cat /tmp/recovery.log | grep -E "primary planes|Failed to init display|gui2:"
+adb shell logcat -d | grep -E "TWRP DRM|minui"
+```
+
 ### USB: the device tree owns the gadget
 
 TWRP's `etc/init.rc` ships its own configfs USB rules for `adb`, `sideload` and

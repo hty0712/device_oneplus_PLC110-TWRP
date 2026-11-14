@@ -1,0 +1,70 @@
+Do not require Qualcomm SDE plane capabilities to initialize the display.
+
+The rebased minui ("twrpminui: rebase graphics and input on current minui")
+selects primary planes by looking for a "capabilities" plane property and
+parsing the primary_smart_plane_id marker out of its blob.  That property is a
+Qualcomm SDE extension; mediatek-drm creates only the standard DRM plane
+properties.
+
+Initdisplay() therefore finds no candidate plane on this MTK device:
+
+  TWRP DRM: display 0 found 0/2 primary planes for CRTC index 0
+  Failed to init display
+  gui2: minui display initialization failed
+
+MinuiBackendDrm::Init() returns nullptr, GUI2 exits, init restarts recovery,
+and the kernel keeps showing the bootloader logo while adbd stays reachable
+over its own USB function - the device looks hung at the OnePlus logo although
+"adb devices" lists it.
+
+Probe the plane property once.  When it is missing, keep the pre-rebase
+behaviour: walk the plane list forward and use the first planes that can drive
+the connector's CRTC.  Qualcomm devices keep the reverse CLO order.
+
+diff --git a/twrpminui/graphics_drm.cpp b/twrpminui/graphics_drm.cpp
+index 5283b54..783383b 100644
+--- a/twrpminui/graphics_drm.cpp
++++ b/twrpminui/graphics_drm.cpp
+@@ -758,9 +758,32 @@ int MinuiBackendDrm::Initdisplay(DrmConnector index) {
+   std::unique_ptr<drmModePlaneRes, decltype(&drmModeFreePlaneResources)> options(
+       drmModeGetPlaneResources(drm_fd), drmModeFreePlaneResources);
+   if (!options) return -1;
++  // TWRP: "capabilities" (and its primary_smart_plane_id marker) is a Qualcomm SDE
++  // plane property.  mediatek-drm exposes only the standard DRM plane properties, so
++  // requiring it leaves zero candidates and MinuiBackendDrm::Init() fails before GUI2
++  // can take the panel over (the boot logo stays and only adbd comes up).  Detect the
++  // property once and fall back to the pre-rebase plane pick: the first planes that
++  // can drive this CRTC.
++  bool has_plane_capabilities = false;
++  for (uint32_t i = 0; i < options->count_planes && !has_plane_capabilities; ++i) {
++    drmModeObjectProperties* props = drmModeObjectGetProperties(drm_fd, options->planes[i],
++                                                               DRM_MODE_OBJECT_PLANE);
++    if (!props) continue;
++    for (uint32_t j = 0; j < props->count_props; ++j) {
++      drmModePropertyRes* prop = drmModeGetProperty(drm_fd, props->props[j]);
++      if (prop) {
++        if (!strcmp(prop->name, "capabilities")) has_plane_capabilities = true;
++        drmModeFreeProperty(prop);
++      }
++    }
++    drmModeFreeObjectProperties(props);
++  }
+   uint32_t selected = 0;
+   // TWRP: signed reverse traversal avoids CLO's unsigned underflow on missing pipes.
+-  for (int i = static_cast<int>(options->count_planes) - 1; i >= 0 && selected < number_of_lms; --i) {
++  for (int step = 0; step < static_cast<int>(options->count_planes) && selected < number_of_lms;
++       ++step) {
++    const int i = has_plane_capabilities ? static_cast<int>(options->count_planes) - 1 - step
++                                         : step;
+     Plane candidate{};
+     candidate.plane = drmModeGetPlane(drm_fd, options->planes[i]);
+     if (!candidate.plane) continue;
+@@ -768,7 +791,7 @@ int MinuiBackendDrm::Initdisplay(DrmConnector index) {
+       drmModeFreePlane(candidate.plane);
+       continue;
+     } // TWRP: do not attach another connector's pipes.
+-    bool primary = false;
++    bool primary = !has_plane_capabilities;
+     if (load_properties(candidate.plane->plane_id, DRM_MODE_OBJECT_PLANE, &candidate)) {
+       for (uint32_t j = 0; j < candidate.props->count_props; ++j) {
+         if (!strcmp(candidate.props_info[j]->name, "capabilities"))
