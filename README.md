@@ -366,6 +366,27 @@ I:[MTP] mtppipe add storage 65545 '/data/media/0'
 and `getprop sys.usb.ffs.mtp.ready`, `getprop sys.usb.state` report `1` and
 `mtp,adb` with `ep0`..`ep3` present in `/dev/usb-ffs/mtp`.
 
+### USB OTG storage: the fstab has to use the real sysfs path
+
+TWRP turns a fstab entry whose device starts with `/devices/` into a removable
+partition and only assigns a block device when a kernel block uevent's
+`DEVPATH` starts with that prefix (`TWPartitionManager::HandleUevent`). The
+MT6991 USB controllers are below the `soc` bus, so the real path is
+`/sys/devices/platform/soc/16701000.usb0/16700000.xhci0`. The
+`voldmanaged=usbotg` lines in [`recovery.fstab`](./recovery.fstab) therefore
+need `/devices/platform/soc/...`; without the `soc/` segment every uevent is
+ignored, the `/auto*` partitions stay absent and USB storage can never be
+mounted. A fixed device node cannot replace them either: UFS already owns
+`sda`-`sdc` here, so an OTG disk enumerates as `sdd`, not the `/dev/block/sdg1`
+that twrp.flags used to carry.
+
+The Mount page's *USB Storage* toggle is a different feature (USB Mass Storage
+gadget). TWRP only exports a secondary, non data-media volume, i.e. a microSD or
+an OTG disk - never `/data/media`. This phone has no microSD slot and only one
+USB-C port, so an OTG disk and the PC cannot be attached at the same time; the
+toggle consequently ends with "Unable to locate storage device". Use MTP (it
+works, see above) or `adb push`/`adb pull` for internal storage.
+
 ### Reboot loop: keystore2 is a `critical` service
 
 `/system/etc/init/keystore2.rc` in the recovery ramdisk declares

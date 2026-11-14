@@ -60,10 +60,14 @@ my_manifest /my_manifest erofs ro wait,slotselect,logical,first_stage_mount,nofa
 /dev/block/by-name/misc /misc emmc defaults defaults
 
 # Removable storage
-/devices/platform/16701000.usb0/16700000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/16711000.usb1/16710000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/16721000.usb2/16720000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/11201000.usb0/11200000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/11211000.usb1/11210000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+# TWRP resolves these from the block uevent's DEVPATH, so the prefix has to be
+# the real sysfs path. The MT6991 USB controllers live below the "soc" bus
+# (/sys/devices/platform/soc/16701000.usb0/16700000.xhci0); without "soc/" no
+# USB storage uevent ever matches and the drive never shows up.
+/devices/platform/soc/16701000.usb0/16700000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/soc/16711000.usb1/16710000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/soc/16721000.usb2/16720000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/soc/11201000.usb0/11200000.xhci* auto vfat defaults voldmanaged=usbotg:auto
+/devices/platform/soc/11211000.usb1/11210000.xhci* auto vfat defaults voldmanaged=usbotg:auto
 /devices/platform/usb_xhci* auto vfat defaults voldmanaged=usbotg:auto
 /devices/platform/soc/16310000.mmc* auto auto defaults voldmanaged=sdcard1:auto

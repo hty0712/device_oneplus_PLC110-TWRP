@@ -46,5 +46,7 @@
 /persistent     emmc    /dev/block/by-name/frp                                              flags=display="FRP";backup=1
 /seccfg         emmc    /dev/block/by-name/seccfg                                          flags=display="Seccfg"
 
-# Removable storage
-/usbstorage     vfat    /dev/block/sdg1                                 /dev/block/sdg        flags=fsflags=utf8;display="USB Storage";storage;wipeingui;removable
+# Removable storage is not listed here: TWRP discovers USB OTG through the
+# voldmanaged=usbotg entries in recovery.fstab. A fixed /dev/block/sdX node
+# cannot work on this device - UFS already owns sda..sdc and the OTG disk
+# letter depends on enumeration order.
