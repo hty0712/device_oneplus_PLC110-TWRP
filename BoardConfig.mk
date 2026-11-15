@@ -194,6 +194,16 @@ TW_DEFAULT_BRIGHTNESS := 1638
 # No vibrator HAL is exposed on this device; aw8697 is driven through sysfs
 TW_INPUT_BLACKLIST := "hbtp_vm"
 
+# Battery / charging status
+#
+# TWRP 16 reads the battery through the health HAL by default. Recovery has no
+# health implementation: the AIDL instance is not in the recovery VINTF
+# manifest (TWRP's libvintf only reads /system manifests) and no HIDL health
+# service is registered, so GetBatteryInfo() falls back to its fake
+# "100%, charging" default and the status bar never shows the real gauge.
+# Read the OPLUS gauge's standard power supply directly instead.
+TW_USE_LEGACY_BATTERY_SERVICES := true
+
 # Misc
 TW_CUSTOM_CPU_TEMP_PATH := "/sys/class/thermal/thermal_zone5/temp"
 TW_DEVICE_VERSION := PLC110-A16

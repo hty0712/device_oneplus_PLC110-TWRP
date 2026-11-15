@@ -243,6 +243,8 @@ Working (expected, based on the stock ramdisk contents and flags):
 * Flashing images and zips, backup/restore of the boot images
 * `adb sideload` of zips and of `payload.bin` A/B OTA packages
 * Vibration (haptics) through the `aw8697` sysfs LED
+* Battery percentage and charging indicator from the OPLUS gauge's
+  `/sys/class/power_supply/battery`
 
 ### MTK display: page-flip events must stay disabled
 
@@ -909,6 +911,37 @@ loads the module at ~3.1 s, before the erofs `/vendor` is mounted, so the very
 first `ram_update` already finds them. (`aw8697.ko` is also in the stock module
 set and always fails with `aw8697_read_chipid unsupported device revision
 (0x82)`; the working driver for this panel is `haptic.ko`.)
+
+### Battery: no health HAL in recovery, so TWRP reported a fake 100%
+
+The status bar showed a constant 100% with the charging icon, independent of
+the gauge:
+
+```
+/sys/class/power_supply/battery/capacity    -> 13
+/sys/class/power_supply/battery/status      -> Charging
+```
+
+TWRP 16's default monitor (`MonitorBattery()` in `twrp.cpp`) calls
+`GetBatteryInfo()` from `recovery_utils/battery_utils.cpp`, which resolves the
+health HAL. Recovery has no health implementation: the AIDL instance is not in
+the recovery VINTF manifest (TWRP's libvintf only reads `/system` manifests)
+and no HIDL health service is registered, so logcat repeated this every 250 ms:
+
+```
+W/recovery: No health implementation is found; assuming defaults
+I/recovery: charge_status UNKNOWN, charging 1, capacity -2147483648
+W/recovery: Using fake battery capacity 100.
+I/recovery: GetBatteryInfo() reporting charging 1, capacity 100
+```
+
+The status bar therefore displayed the fake 100% and a charging icon forever.
+
+`TW_USE_LEGACY_BATTERY_SERVICES := true` makes `MonitorBattery()` read
+`/sys/class/power_supply/battery/{capacity,status}` directly instead. The
+OPLUS gauge (`oplus_mms` -> `gauge`) already exposes the standard power supply
+attributes, so the status bar shows the real percentage and the charging
+marker only while the gauge reports `Charging`.
 
 ### Mounting `/mnt/vendor/*`: TWRP truncates the path to `/mnt`
 
