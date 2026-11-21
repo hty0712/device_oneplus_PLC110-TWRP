@@ -84,4 +84,24 @@ $(PLC110_PLATFORM_FRAGMENT): $(PLC110_PLATFORM_FILES) $(MKBOOTFS) $(LZ4)
 INTERNAL_VENDOR_RAMDISK_TARGET := $(PLC110_PLATFORM_FRAGMENT)
 $(INSTALLED_VENDOR_BOOTIMAGE_TARGET): $(PLC110_PLATFORM_FRAGMENT)
 
+# The DTB cannot be shipped stock: the OPlus DTBO overlays attach the
+# mediatek,usb-offload phandle to the xhci node, and mtu3 refuses to switch the
+# DR port to host while that offload driver is not registered
+# ("offload not ready").  usb_offload.ko only lives in vendor_dlkm and cannot
+# probe in recovery (it needs the ADSP firmware), so an OTG drive is never
+# enumerated.  dtbo is authenticated by the bootloader, the base DTB inside
+# vendor_boot is not, so tools/patch_dtb_usb_offload.py repoints the usb_host
+# symbol at an empty node and the overlay then applies the property there.
+PLC110_DTB_STOCK := $(TARGET_DEVICE_DIR)/prebuilt/dtb
+PLC110_DTB_PATCHED := $(TARGET_RECOVERY_OUT)/plc110_dtb_usb_offload.dtb
+PLC110_DTB_PATCHER := $(TARGET_DEVICE_DIR)/tools/patch_dtb_usb_offload.py
+
+$(PLC110_DTB_PATCHED): $(PLC110_DTB_STOCK) $(PLC110_DTB_PATCHER)
+	@mkdir -p $(dir $@)
+	$(hide) python3 $(PLC110_DTB_PATCHER) $(PLC110_DTB_STOCK) $@
+
+TARGET_PREBUILT_DTB := $(PLC110_DTB_PATCHED)
+BOARD_MKBOOTIMG_ARGS += --dtb $(PLC110_DTB_PATCHED)
+$(INSTALLED_VENDOR_BOOTIMAGE_TARGET): $(PLC110_DTB_PATCHED)
+
 endif

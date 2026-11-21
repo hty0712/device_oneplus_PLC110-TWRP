@@ -1,0 +1,17 @@
+diff --git a/partition.cpp b/partition.cpp
+index 4c6e94b..5bbae20 100755
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -2792,7 +2792,11 @@ bool TWPartition::FindWildcardBlockDevices(const std::string& device) {
+     // A late-arriving partition must not take another partition's identity.
+     if (PartitionManager.FindPartitionByPath(child_mount)) continue;
+     auto* part = new TWPartition;
+-    std::string buffer = std::format("{} {} auto defaults defaults", item, child_mount);
++    // The generated line used to hardcode "defaults", which dropped the parent's
++    // mount options: a vfat card then mounted with the kernel default iocharset
++    // (iso8859-1) and non-Latin file names came out as '?'.
++    const std::string child_mount_flags = mount_options_.empty() ? "defaults" : mount_options_;
++    std::string buffer = std::format("{} {} auto {} defaults", item, child_mount, child_mount_flags);
+     if (!part->ProcessFstabLine(buffer.c_str(), false, nullptr)) {
+       delete part;
+       continue;

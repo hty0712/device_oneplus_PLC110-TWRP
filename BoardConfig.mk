@@ -212,6 +212,7 @@ TW_EXTRA_LANGUAGES := true
 TW_EXCLUDE_APEX := true
 TW_EXCLUDE_TWRPAPP := true
 TW_EXCLUDE_DEFAULT_USB_INIT := true
+TW_INCLUDE_WIFI := false
 TW_INCLUDE_FASTBOOTD := true
 TW_INCLUDE_LPDUMP := true
 TW_INCLUDE_LPTOOLS := true
@@ -223,10 +224,16 @@ TW_USE_SERIALNO_PROPERTY_FOR_DEVICE_ID := true
 TW_USE_TOOLBOX := true
 TW_ENABLE_ALL_PARTITION_TOOLS := true
 
+# MTK reboot modes, adds Download and EDL to the reboot page
+TW_HAS_DOWNLOAD_MODE := true
+TW_HAS_EDL_MODE := true
+
 # File system tools
 RECOVERY_SDCARD_ON_DATA := true
 TARGET_USES_MKE2FS := true
 TW_ENABLE_FS_COMPRESSION := true
+# Discard the target range before restoring a raw or sparse image.
+TW_ENABLE_BLKDISCARD := true
 TW_INCLUDE_FUSE_EXFAT := true
 TW_INCLUDE_FUSE_NTFS := true
 TW_INCLUDE_NTFS_3G := true

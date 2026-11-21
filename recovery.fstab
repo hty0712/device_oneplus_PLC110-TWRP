@@ -64,10 +64,15 @@ my_manifest /my_manifest erofs ro wait,slotselect,logical,first_stage_mount,nofa
 # the real sysfs path. The MT6991 USB controllers live below the "soc" bus
 # (/sys/devices/platform/soc/16701000.usb0/16700000.xhci0); without "soc/" no
 # USB storage uevent ever matches and the drive never shows up.
-/devices/platform/soc/16701000.usb0/16700000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/soc/16711000.usb1/16710000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/soc/16721000.usb2/16720000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/soc/11201000.usb0/11200000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/soc/11211000.usb1/11210000.xhci* auto vfat defaults voldmanaged=usbotg:auto
-/devices/platform/usb_xhci* auto vfat defaults voldmanaged=usbotg:auto
+#
+# "utf8" is required: this kernel keeps CONFIG_FAT_DEFAULT_IOCHARSET at
+# iso8859-1, so a vfat card mounted without it reports every non-Latin file
+# name as '?'. tools/patches/0012 makes the discovered sdX partitions inherit
+# these mount options from the controller entry below.
+/devices/platform/soc/16701000.usb0/16700000.xhci* auto vfat utf8 voldmanaged=usbotg:auto
+/devices/platform/soc/16711000.usb1/16710000.xhci* auto vfat utf8 voldmanaged=usbotg:auto
+/devices/platform/soc/16721000.usb2/16720000.xhci* auto vfat utf8 voldmanaged=usbotg:auto
+/devices/platform/soc/11201000.usb0/11200000.xhci* auto vfat utf8 voldmanaged=usbotg:auto
+/devices/platform/soc/11211000.usb1/11210000.xhci* auto vfat utf8 voldmanaged=usbotg:auto
+/devices/platform/usb_xhci* auto vfat utf8 voldmanaged=usbotg:auto
 /devices/platform/soc/16310000.mmc* auto auto defaults voldmanaged=sdcard1:auto

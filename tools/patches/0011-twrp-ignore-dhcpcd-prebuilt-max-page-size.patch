@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Copilot <223556219+Copilot@users.noreply.github.com>
+Date: Sat, 21 Nov 2026 12:20:00 +0800
+Subject: [PATCH] twrp: ignore max page size check for dhcpcd prebuilt
+
+The bundled arm64 dhcpcd prebuilt used when TW_INCLUDE_WIFI is enabled has
+4 KB ELF load segment alignment, but Android 16 recovery builds for this
+device require 16 KB alignment during check_elf_files. Skip the max page
+size check for this recovery-only prebuilt.
+
+---
+ prebuilt/Android.mk | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/prebuilt/Android.mk b/prebuilt/Android.mk
+index 42aa8f6..be9e52f 100644
+--- a/prebuilt/Android.mk
++++ b/prebuilt/Android.mk
+@@ -241,6 +241,7 @@ ifeq ($(call twrp_scalar,$(TW_INCLUDE_WIFI)), true)
+     LOCAL_MODULE_CLASS := EXECUTABLES
+     LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/system/bin
+     LOCAL_SRC_FILES := dhcpcd
++    LOCAL_IGNORE_MAX_PAGE_SIZE := true
+     include $(BUILD_PREBUILT)
+ 
+     include $(CLEAR_VARS)
+-- 
+2.43.0

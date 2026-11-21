@@ -389,6 +389,84 @@ USB-C port, so an OTG disk and the PC cannot be attached at the same time; the
 toggle consequently ends with "Unable to locate storage device". Use MTP (it
 works, see above) or `adb push`/`adb pull` for internal storage.
 
+### OTG host mode: mtu3 waits for a driver that cannot load in recovery
+
+Even with the fstab fixed nothing enumerated, because the DR port never became
+a host: `/sys/class/usb_role/16701000.usb0-role-switch/role` stayed `device`,
+`xhci-mtk-p1`/`-p2` had no device bound and `dmesg` showed
+
+```
+mtu3 16701000.usb0: ssusb_set_mode host
+mtu3 16701000.usb0: offload not ready
+```
+
+`ssusb_set_mode()` (drivers/usb/mtu3/mtu3_dr.c) drops every host request while
+`ssusb->offload_support && !ssusb->offload`. `offload_support` is only
+"the xhci child node has the `mediatek,usb-offload` property", and the sole
+driver that calls `ssusb_offload_register()` is `usb_offload.ko` from
+`/vendor_dlkm/lib/modules`. It cannot probe in recovery:
+`mtk_offload_init_rsv_dram()` fails with `adsp_get_reserve_mblock va_start is
+NULL` because nothing brings up the ADSP firmware, so loading it by hand
+(via `adsp.ko`, `audio_ipi.ko`, `snd-soc-*common.ko`, ...) still ends in
+`usb_offload_probe(3215) Probe Fail!!!`.
+
+The property cannot be edited where it is written: the OPlus DTBO entries add it
+with `fragment@N { target = <&usb_host>; ... }`, and `dtbo` is authenticated by
+the bootloader (`[SEC] image dtbo auth fail (0x101011)` if a byte changes). The
+base DTB inside vendor_boot is not authenticated, so
+[`tools/patch_dtb_usb_offload.py`](./tools/patch_dtb_usb_offload.py) repoints the
+`usb_host` entry of the base DTB's `__symbols__` at a new empty
+`/usb-offload-holder` node, and the overlay then applies its property there
+instead of to `/soc/usb0@16701000/xhci0@16700000`.
+
+Two details matter, both learned the hard way from `expdb`:
+
+* `ufdt_apply_overlay()` rejects the base when `fdt_totalsize()` differs from the
+  size the fragment table advertises (`ERROR: ufdt_apply_overlay():Bad fdt size!`
+  → `ASSERT FAILED at (app/mt_boot/mt_boot.c:584)`), so the serializer has to
+  keep container size, table entry size and `totalsize` identical.
+* The symbol target must carry a `phandle`: libufdt resolves a fragment target by
+  reading that property from the node the symbol points at and otherwise fails
+  with `ufdt_overlay_get_target():failed to find target 0000`.
+
+`build/tasks/recovery_ramdisk_files.mk` runs the patcher while the image is
+built and passes the result to mkbootimg as `--dtb`. The cost is the ADSP
+USB-audio offload path on a normal Android boot; USB audio itself still runs
+over the regular xHCI URBs.
+
+To try a single DTB change without rebuilding everything,
+[`tools/pack_vendor_boot.py`](./tools/pack_vendor_boot.py) repacks an existing
+vendor_boot with another `--dtb`; fed the original payloads it reproduces the
+input byte for byte, so only the DTB and the header's `dtb_size` change. Verify
+on the device with
+
+```
+adb shell ls /proc/device-tree/usb-offload-holder/
+adb shell ls /proc/device-tree/soc/usb0@16701000/xhci0@16700000/
+```
+
+the holder carries `mediatek,usb-offload` and the xhci node does not.
+
+### Removable vfat: file names need `utf8`
+
+A mounted OTG drive listed Chinese names as `???`. This kernel keeps
+`CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"` (`CONFIG_FAT_DEFAULT_UTF8` unset), so
+a vfat mount without `utf8` maps every character outside latin-1 to `?`.
+`CONFIG_NLS_UTF8=y`, so passing the option is enough.
+
+Two pieces are needed:
+
+* the `voldmanaged=usbotg` lines in [`recovery.fstab`](./recovery.fstab) carry
+  `utf8` in their mount options;
+* `tools/patches/0012-twrp-removable-mount-options.patch` makes the partitions
+  discovered for a wildcard controller entry inherit the parent's mount
+  options. `TWPartition::FindWildcardBlockDevices()` used to build the child
+  fstab line as `"%s %s auto defaults defaults"`, so the `/auto0-sdd-1` that a
+  real drive is mounted on never saw the parent's `utf8`.
+
+The exfat and ntfs paths ignore the option (the exfat helper is invoked without
+it and the kernel defaults to UTF-8 there), so only vfat is affected.
+
 ### Reboot loop: keystore2 is a `critical` service
 
 `/system/etc/init/keystore2.rc` in the recovery ramdisk declares

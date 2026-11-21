@@ -1,0 +1,19 @@
+# Wi-Fi support for TWRP on OnePlus Ace 5 Ultra (MT6991 / connac3)
+#
+# The GUI Wi-Fi backend (TW_INCLUDE_WIFI) starts/stops the init service named
+# "wpa_supplicant" and talks to it via wpa_cli over /tmp/recovery/sockets on
+# interface wlan0.
+
+on init
+    mkdir /tmp/recovery 0755 root root
+    mkdir /tmp/recovery/sockets 0770 wifi wifi
+    mkdir /system/etc/wifi 0770 wifi wifi
+
+service wpa_supplicant /system/bin/wpa_supplicant \
+    -i wlan0 -D nl80211 -c /system/etc/wifi/wpa_supplicant.conf \
+    -O /tmp/recovery/sockets -dd
+    user root
+    group root wifi inet
+    seclabel u:r:recovery:s0
+    disabled
+    oneshot
